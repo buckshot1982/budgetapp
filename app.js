@@ -55,7 +55,7 @@ const DEFAULT_DATA = {
     { name: "Brightway Credit", amount: 25, due: 27 },
   ],
   debts: [
-    { name: "Freedom Flex", balance: 200.39, minPay: 25.00, apr: 27.99 },
+    { name: "Freedom Flex (chase)", balance: 200.39, minPay: 25.00, apr: 27.99 },
     { name: "Amazon Store", balance: 247.83, minPay: 30.00, apr: 29.49 },
     { name: "Diana Savor Card 7247", balance: 390.85, minPay: 50.00, apr: 29.00 },
     { name: "Diana Credit One", balance: 410.56, minPay: 50.00, apr: 29.00 },
