@@ -55,7 +55,7 @@ const DEFAULT_DATA = {
     { name: "Brightway Credit", amount: 25, due: 27 },
   ],
   debts: [
-    { name: "Freedom Flex (chase)", balance: 200.39, minPay: 25.00, apr: 27.99 },
+    { name: "Freedom Flex", balance: 200.39, minPay: 25.00, apr: 27.99 },
     { name: "Amazon Store", balance: 247.83, minPay: 30.00, apr: 29.49 },
     { name: "Diana Savor Card 7247", balance: 390.85, minPay: 50.00, apr: 29.00 },
     { name: "Diana Credit One", balance: 410.56, minPay: 50.00, apr: 29.00 },
@@ -69,13 +69,6 @@ const DEFAULT_DATA = {
     { name: "Pioneer", balance: 3559.30, minPay: 333.05, apr: 35.99 },
     { name: "Road Runner Financial", balance: 6682.69, minPay: 176.00, apr: 18.99 },
     { name: "OneMain Loan", balance: 9692.48, minPay: 397.40, apr: 35.99 },
-    { name: "Direct Loan Sub 1-01", balance: 4500.00, minPay: 0.00, apr: 4.990 },
-    { name: "Direct Loan Unsub 1-02", balance: 5724.67, minPay: 0.00, apr: 4.990 },
-    { name: "Direct Loan Sub 1-03", balance: 1469.00, minPay: 0.00, apr: 5.500 },
-    { name: "Direct Loan Sub 1-04", balance: 5500.00, minPay: 0.00, apr: 6.530 },
-    { name: "Direct Loan Unsub 1-05", balance: 5665.60, minPay: 0.00, apr: 6.530 },
-    { name: "Direct Loan Sub 1-06", balance: 5500.00, minPay: 0.00, apr: 6.390 },
-    { name: "Direct Loan Unsub 1-07", balance: 995.79, minPay: 0.00, apr: 6.390 },
   ],
   extraPayment: 6500,
   payoffMethod: "snowball",
@@ -84,6 +77,13 @@ const DEFAULT_DATA = {
     { name: "Mortgage Balance", value: 332244.81 },
     { name: "TSP Loan 1 Balance", value: 2439.36 },
     { name: "TSP Loan 2 Balance", value: 14842.27 },
+    { name: "Direct Loan Sub 1-01", value: 4500.00, note: "Payments start 01/01/2027" },
+    { name: "Direct Loan Unsub 1-02", value: 5724.67, note: "Payments start 01/01/2027" },
+    { name: "Direct Loan Sub 1-03", value: 1469.00, note: "Payments start 01/01/2027" },
+    { name: "Direct Loan Sub 1-04", value: 5500.00, note: "Payments start 01/01/2027" },
+    { name: "Direct Loan Unsub 1-05", value: 5665.60, note: "Payments start 01/01/2027" },
+    { name: "Direct Loan Sub 1-06", value: 5500.00, note: "Payments start 01/01/2027" },
+    { name: "Direct Loan Unsub 1-07", value: 995.79, note: "Payments start 01/01/2027" },
   ],
   goals: [
     { name: "Emergency Fund", target: 15000, current: 0 },
@@ -222,6 +222,7 @@ function renderList(container, title, key, fields, totalLabel) {
     const row = document.createElement("div");
     row.className = "row";
     const meta = fields.filter((f) => f.key !== "name" && f.key !== fields.find(x=>x.type==="number"&&x.key!=="due")?.key)
+      .filter((f) => item[f.key] !== undefined && item[f.key] !== null && item[f.key] !== "")
       .map((f) => `${f.label}: ${item[f.key]}`).join(" · ");
     const amountField = fields.find((f) => f.type === "number" && f.key !== "due");
     row.innerHTML = `
@@ -418,7 +419,7 @@ function renderNetWorth(root) {
   root.appendChild(stats);
 
   renderList(root, "Assets", "assets", [{ key: "name", label: "Asset" }, { key: "value", label: "Value", type: "number" }], "Total assets");
-  renderList(root, "Other liabilities", "otherLiabilities", [{ key: "name", label: "Liability" }, { key: "value", label: "Value", type: "number" }], "Total other liabilities");
+  renderList(root, "Other liabilities", "otherLiabilities", [{ key: "name", label: "Liability" }, { key: "value", label: "Value", type: "number" }, { key: "note", label: "Note" }], "Total other liabilities");
 
   const note = document.createElement("p");
   note.className = "stat-sub";
