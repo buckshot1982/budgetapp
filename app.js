@@ -316,6 +316,16 @@ function renderList(container, title, key, fields, totalLabel) {
 // ---- tab renderers ----
 function renderDashboard(root) {
   const months = projectDebtFreeMonths(data.debts, data.extraPayment, data.payoffMethod);
+
+  const regRows = registerRows();
+  const checkingBalance = regRows.length
+    ? regRows[regRows.length - 1].runningBalance
+    : (data.register.startingBalance || 0);
+  const balCard = document.createElement("div");
+  balCard.className = "card";
+  balCard.innerHTML = `<p class="stat-label">Checking balance</p><p class="stat-value ${checkingBalance >= 0 ? "green" : "red"}" style="font-size:32px;">${fmt(checkingBalance)}</p>`;
+  root.appendChild(balCard);
+
   const stats = document.createElement("div");
   stats.className = "stats-grid";
   const items = [
@@ -346,8 +356,8 @@ function renderDashboard(root) {
     const paid = d.balance <= 0.01;
     const isTarget = target && target.name === d.name;
     div.className = "ribbon";
-    div.style.background = paid ? "var(--green-dim)" : isTarget ? "var(--gold)" : "#223050";
-    div.style.color = paid ? "var(--green)" : isTarget ? "#4a2c02" : "var(--text-dim)";
+    div.style.background = paid ? "var(--green-dim)" : isTarget ? "var(--gold)" : "var(--surface)";
+    div.style.color = paid ? "var(--green)" : isTarget ? "var(--gold-text)" : "var(--text-dim)";
     div.title = d.name;
     div.textContent = paid ? "✓" : Math.round(pctPaid) + "%";
     grid.appendChild(div);
