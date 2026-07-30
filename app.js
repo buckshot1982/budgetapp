@@ -90,11 +90,40 @@ const DEFAULT_DATA = {
     { name: "Rental Property Down Payment", target: 40000, current: 0 },
     { name: "RV Fund", target: 60000, current: 0 },
   ],
+  register: {
+    startingBalance: 0,
+    transactions: [
+      // { date: "07/01", desc: "Paycheck", type: "deposit", amount: 500 },
+    ],
+  },
 };
+
+// Wrap localStorage so a sandboxed preview that blocks it (throws instead of
+// just being unavailable) can't break saves/re-renders — falls back to an
+// in-memory store for that session. Real hosting (GitHub Pages, opened
+// locally, installed PWA) has normal localStorage and persists as before.
+const memoryFallback = {};
+let storageBlocked = false;
+function storageGet(key) {
+  try {
+    return localStorage.getItem(key);
+  } catch (e) {
+    storageBlocked = true;
+    return key in memoryFallback ? memoryFallback[key] : null;
+  }
+}
+function storageSet(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch (e) {
+    storageBlocked = true;
+    memoryFallback[key] = value;
+  }
+}
 
 function loadData() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = storageGet(STORAGE_KEY);
     if (raw) return { ...structuredClone(DEFAULT_DATA), ...JSON.parse(raw) };
   } catch (e) {}
   return structuredClone(DEFAULT_DATA);
@@ -103,7 +132,7 @@ function loadData() {
 let data = loadData();
 
 function save() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  storageSet(STORAGE_KEY, JSON.stringify(data));
 }
 
 function fmt(n) {
@@ -153,6 +182,13 @@ const netWorth = () => totalAssets() - totalOtherLiab() - totalDebt();
 const sortedDebts = () => [...data.debts].sort((a, b) =>
   data.payoffMethod === "avalanche" ? b.apr - a.apr : a.balance - b.balance
 );
+const registerRows = () => {
+  let bal = data.register.startingBalance || 0;
+  return data.register.transactions.map((t) => {
+    bal += t.type === "withdrawal" ? -(t.amount || 0) : (t.amount || 0);
+    return { ...t, runningBalance: bal };
+  });
+};
 
 // ---- generic modal for add/edit ----
 function openModal(title, fields, initial, onSave) {
@@ -168,10 +204,22 @@ function openModal(title, fields, initial, onSave) {
     const label = document.createElement("label");
     label.className = "field-label";
     label.textContent = f.label;
-    const input = document.createElement("input");
-    input.type = f.type === "number" ? "number" : "text";
-    if (f.type === "number") input.step = "any";
-    input.value = initial ? initial[f.key] : "";
+    let input;
+    if (f.type === "select") {
+      input = document.createElement("select");
+      f.options.forEach((opt) => {
+        const o = document.createElement("option");
+        o.value = opt.value;
+        o.textContent = opt.label;
+        input.appendChild(o);
+      });
+      input.value = initial ? initial[f.key] : f.options[0].value;
+    } else {
+      input = document.createElement("input");
+      input.type = f.type === "number" ? "number" : "text";
+      if (f.type === "number") input.step = "any";
+      input.value = initial ? initial[f.key] : "";
+    }
     wrap.appendChild(label);
     wrap.appendChild(input);
     modal.appendChild(wrap);
@@ -345,6 +393,96 @@ function renderBudget(root) {
   renderList(root, "Deductions", "deductions", [{ key: "name", label: "Item" }, { key: "amount", label: "$/mo", type: "number" }], "Total deductions");
   renderList(root, "Allotments", "allotments", [{ key: "name", label: "Item" }, { key: "amount", label: "$/mo", type: "number" }], "Total allotments");
   renderList(root, "Bills", "bills", [{ key: "name", label: "Bill" }, { key: "due", label: "Due day", type: "number" }, { key: "amount", label: "$/mo", type: "number" }], "Total bills");
+
+  renderRegister(root);
+}
+
+const REGISTER_FIELDS = [
+  { key: "date", label: "Date" },
+  { key: "desc", label: "Description" },
+  { key: "type", label: "Type", type: "select", options: [
+      { value: "deposit", label: "Deposit" },
+      { value: "withdrawal", label: "Withdrawal" },
+    ] },
+  { key: "amount", label: "Amount", type: "number" },
+];
+
+function renderRegister(root) {
+  const card = document.createElement("div");
+  card.className = "card";
+  card.innerHTML = `<div class="section-title">Checkbook register<button class="add-btn">+ Add</button></div>`;
+
+  const startRow = document.createElement("div");
+  startRow.className = "extra-row";
+  startRow.innerHTML = `<span class="field-label" style="margin:0;">Starting balance</span>`;
+  const startInput = document.createElement("input");
+  startInput.type = "number";
+  startInput.step = "any";
+  startInput.value = data.register.startingBalance;
+  startInput.onchange = () => {
+    data.register.startingBalance = parseFloat(startInput.value) || 0;
+    save();
+    renderApp();
+  };
+  startRow.appendChild(startInput);
+  card.appendChild(startRow);
+
+  const rows = registerRows();
+  if (rows.length === 0) {
+    const e = document.createElement("div");
+    e.className = "empty";
+    e.textContent = "No entries yet — tap + Add.";
+    card.appendChild(e);
+  } else {
+    const table = document.createElement("table");
+    table.className = "reg-table";
+    table.innerHTML = `<thead><tr><th>Date</th><th>Description</th><th>Deposit</th><th>Withdrawal</th><th>Balance</th><th></th></tr></thead>`;
+    const tbody = document.createElement("tbody");
+    rows.forEach((r, idx) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${r.date || ""}</td>
+        <td>${r.desc || ""}</td>
+        <td class="amt-pos">${r.type === "deposit" ? fmt(r.amount) : ""}</td>
+        <td class="amt-neg">${r.type === "withdrawal" ? fmt(r.amount) : ""}</td>
+        <td class="reg-bal">${fmt(r.runningBalance)}</td>
+        <td><button class="reg-del-btn">&times;</button></td>
+      `;
+      tr.onclick = (e) => {
+        if (e.target.closest(".reg-del-btn")) return;
+        openModal("Edit entry", REGISTER_FIELDS, data.register.transactions[idx], (updated) => {
+          data.register.transactions[idx] = updated;
+          save();
+          renderApp();
+        });
+      };
+      tr.querySelector(".reg-del-btn").onclick = (e) => {
+        e.stopPropagation();
+        data.register.transactions.splice(idx, 1);
+        save();
+        renderApp();
+      };
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    card.appendChild(table);
+  }
+
+  const endBal = rows.length ? rows[rows.length - 1].runningBalance : (data.register.startingBalance || 0);
+  const endBalRow = document.createElement("div");
+  endBalRow.className = "total-row";
+  endBalRow.innerHTML = `<span>Current balance</span><span>${fmt(endBal)}</span>`;
+  card.appendChild(endBalRow);
+
+  card.querySelector(".add-btn").onclick = () => {
+    openModal("Add entry", REGISTER_FIELDS, null, (result) => {
+      data.register.transactions.push(result);
+      save();
+      renderApp();
+    });
+  };
+
+  root.appendChild(card);
 }
 
 function renderDebts(root) {
@@ -490,7 +628,9 @@ function renderApp() {
   root.innerHTML = "";
   RENDERERS[currentTab](root);
   const footer = document.createElement("footer");
-  footer.textContent = "Saved automatically on this phone.";
+  footer.textContent = storageBlocked
+    ? "Preview mode: changes work but won't be saved after refresh. Open the file directly to save normally."
+    : "Saved automatically on this phone.";
   root.appendChild(footer);
 }
 
