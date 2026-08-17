@@ -1,8 +1,75 @@
 // Finance Command Center — vanilla JS PWA logic
 // No build step, no dependencies. Data is saved to this phone's browser
-// storage (localStorage) automatically after every change.
+// storage (localStorage) as an instant local cache, AND synced to a shared
+// Firestore document so you and Diana see the same data on separate devices.
 
 const STORAGE_KEY = "financeCommandCenterData";
+
+// --- Cloud sync (Firebase Firestore) ---------------------------------
+// Both of your devices read/write this same document. Whoever saves last
+// wins on any given field — there's no per-field merge, so if you're both
+// editing at the exact same moment, the later save overwrites the earlier
+// one. Fine for two people casually checking a shared budget.
+const firebaseConfig = {
+  apiKey: "AIzaSyAV6nsCvf4KEb_t0itGOrPTs13UwSzpRJ8",
+  authDomain: "financecommand-de53a.firebaseapp.com",
+  projectId: "financecommand-de53a",
+  storageBucket: "financecommand-de53a.firebasestorage.app",
+  messagingSenderId: "354273683834",
+  appId: "1:354273683834:web:a05983db8f2fcf2aee0ec3",
+};
+const SHARED_DOC_PATH = ["households", "hale-family"];
+
+let cloudDb = null;
+let cloudDocRef = null;
+let cloudReady = false;
+let suppressNextSnapshot = false;
+
+try {
+  const cloudApp = firebase.initializeApp(firebaseConfig);
+  cloudDb = firebase.firestore(cloudApp);
+  cloudDocRef = cloudDb.collection(SHARED_DOC_PATH[0]).doc(SHARED_DOC_PATH[1]);
+} catch (e) {
+  // No network / Firebase blocked (e.g. sandboxed preview) — app still
+  // works fully offline from localStorage, just without cross-device sync.
+  console.warn("Cloud sync unavailable, using local storage only:", e);
+}
+
+function startCloudSync() {
+  if (!cloudDocRef) return;
+
+  cloudDocRef.onSnapshot(
+    (snap) => {
+      cloudReady = true;
+      if (suppressNextSnapshot) {
+        suppressNextSnapshot = false;
+        return;
+      }
+      if (snap.metadata.hasPendingWrites) return; // ignore our own local write echo
+      if (!snap.exists) {
+        pushToCloud();
+        return;
+      }
+      const cloudData = snap.data();
+      if (cloudData && cloudData.payload) {
+        data = { ...structuredClone(DEFAULT_DATA), ...JSON.parse(cloudData.payload) };
+        storageSet(STORAGE_KEY, cloudData.payload);
+        renderApp();
+      }
+    },
+    (err) => {
+      console.warn("Cloud sync error:", err);
+    }
+  );
+}
+
+function pushToCloud() {
+  if (!cloudDocRef) return;
+  suppressNextSnapshot = true;
+  cloudDocRef.set({ payload: JSON.stringify(data), updatedAt: Date.now() }).catch((e) => {
+    console.warn("Cloud save failed, change is still saved locally:", e);
+  });
+}
 
 const DEFAULT_DATA = {
   income: [
@@ -51,7 +118,7 @@ const DEFAULT_DATA = {
     { name: "Jason Cash App", amount: 100, due: 21 },
     { name: "Amazon Store", amount: 30, due: 23 },
     { name: "Diana Credit One", amount: 50, due: 26 },
-    { name: "AT&T", amount: 247.29, due: 27 },
+    { name: "AT&T", amount: 255.00, due: 27 },
     { name: "Brightway Credit", amount: 25, due: 27 },
   ],
   debts: [
@@ -133,6 +200,7 @@ let data = loadData();
 
 function save() {
   storageSet(STORAGE_KEY, JSON.stringify(data));
+  pushToCloud();
 }
 
 function fmt(n) {
@@ -654,6 +722,7 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
 });
 
 renderApp();
+startCloudSync();
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
