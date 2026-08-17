@@ -467,7 +467,7 @@ function renderBudget(root) {
   });
   root.appendChild(stats);
 
-  renderList(root, "Income", "income", [{ key: "name", label: "Source" }, { key: "amount", label: "$/mo", type: "number" }], "Gross monthly pay");
+  renderList(root, "Income", "income", [{ key: "name", label: "Source" }, { key: "amount", label: "$/mo", type: "number" }, { key: "payday", label: "Payday (day of month)", type: "number" }], "Gross monthly pay");
   renderList(root, "Deductions", "deductions", [{ key: "name", label: "Item" }, { key: "amount", label: "$/mo", type: "number" }], "Total deductions");
   renderList(root, "Allotments", "allotments", [{ key: "name", label: "Item" }, { key: "amount", label: "$/mo", type: "number" }], "Total allotments");
   renderList(root, "Bills", "bills", [{ key: "name", label: "Bill" }, { key: "due", label: "Due day", type: "number" }, { key: "amount", label: "$/mo", type: "number" }], "Total bills");
@@ -606,7 +606,8 @@ function renderDebts(root) {
 
   renderList(root, "Debts", "debts",
     [{ key: "name", label: "Debt" }, { key: "balance", label: "Balance", type: "number" },
-     { key: "minPay", label: "Min pay", type: "number" }, { key: "apr", label: "APR %", type: "number" }],
+     { key: "minPay", label: "Min pay", type: "number" }, { key: "apr", label: "APR %", type: "number" },
+     { key: "dueDay", label: "Due day", type: "number" }],
     "Total remaining");
 
   const target = sortedDebts().find((d) => d.balance > 0.01);
@@ -669,7 +670,7 @@ function renderGoals(root) {
       <div class="progress-track"><div class="progress-fill" style="width:${Math.max(0,Math.min(100,pct))}%;background:var(--green);"></div></div>
     `;
     row.querySelector(".row-name").onclick = () => {
-      openModal("Edit goal", [{ key: "name", label: "Goal" }, { key: "target", label: "Target $", type: "number" }, { key: "current", label: "Current $", type: "number" }], g, (updated) => {
+      openModal("Edit goal", [{ key: "name", label: "Goal" }, { key: "target", label: "Target $", type: "number" }, { key: "current", label: "Current $", type: "number" }, { key: "deadline", label: "Deadline (YYYY-MM-DD)" }], g, (updated) => {
         data.goals[idx] = updated;
         save();
         renderApp();
@@ -683,13 +684,164 @@ function renderGoals(root) {
     card.appendChild(row);
   });
   card.querySelector(".add-btn").onclick = () => {
-    openModal("Add goal", [{ key: "name", label: "Goal" }, { key: "target", label: "Target $", type: "number" }, { key: "current", label: "Current $", type: "number" }], null, (result) => {
+    openModal("Add goal", [{ key: "name", label: "Goal" }, { key: "target", label: "Target $", type: "number" }, { key: "current", label: "Current $", type: "number" }, { key: "deadline", label: "Deadline (YYYY-MM-DD)" }], null, (result) => {
       data.goals.push(result);
       save();
       renderApp();
     });
   };
   root.appendChild(card);
+}
+
+// ---- calendar ----
+let calendarDate = new Date();
+let calendarSelectedDay = null;
+const CAL_TYPE_LABEL = { bill: "Bill due", income: "Income", debt: "Debt payment", goal: "Goal deadline" };
+
+function calendarEventsForMonth(year, month) {
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const events = [];
+  data.bills.forEach((b) => {
+    if (b.due >= 1 && b.due <= daysInMonth) events.push({ day: b.due, type: "bill", label: b.name, amount: b.amount });
+  });
+  data.debts.forEach((d) => {
+    if (d.dueDay >= 1 && d.dueDay <= daysInMonth) events.push({ day: d.dueDay, type: "debt", label: d.name, amount: d.minPay });
+  });
+  data.income.forEach((i) => {
+    if (i.payday >= 1 && i.payday <= daysInMonth) events.push({ day: i.payday, type: "income", label: i.name, amount: i.amount });
+  });
+  data.goals.forEach((g) => {
+    if (g.deadline) {
+      const gd = new Date(g.deadline + "T00:00:00");
+      if (!isNaN(gd) && gd.getFullYear() === year && gd.getMonth() === month) {
+        events.push({ day: gd.getDate(), type: "goal", label: g.name, amount: g.target });
+      }
+    }
+  });
+  return events;
+}
+
+function renderCalendar(root) {
+  const year = calendarDate.getFullYear();
+  const month = calendarDate.getMonth();
+  const events = calendarEventsForMonth(year, month);
+  const today = new Date();
+  const isCurrentMonth = today.getFullYear() === year && today.getMonth() === month;
+
+  const card = document.createElement("div");
+  card.className = "card";
+
+  const nav = document.createElement("div");
+  nav.className = "cal-nav";
+  nav.innerHTML = `
+    <span class="cal-month-label">${calendarDate.toLocaleString("default", { month: "long", year: "numeric" })}</span>
+    <div class="cal-nav-btns">
+      <button class="cal-prev">&lsaquo;</button>
+      <button class="cal-today-btn">Today</button>
+      <button class="cal-next">&rsaquo;</button>
+    </div>
+  `;
+  nav.querySelector(".cal-prev").onclick = () => {
+    calendarDate = new Date(year, month - 1, 1);
+    calendarSelectedDay = null;
+    renderApp();
+  };
+  nav.querySelector(".cal-next").onclick = () => {
+    calendarDate = new Date(year, month + 1, 1);
+    calendarSelectedDay = null;
+    renderApp();
+  };
+  nav.querySelector(".cal-today-btn").onclick = () => {
+    calendarDate = new Date();
+    calendarSelectedDay = new Date().getDate();
+    renderApp();
+  };
+  card.appendChild(nav);
+
+  const legend = document.createElement("div");
+  legend.className = "cal-legend";
+  legend.innerHTML = `
+    <span><i class="cal-dot bill"></i>Bill due</span>
+    <span><i class="cal-dot income"></i>Income</span>
+    <span><i class="cal-dot debt"></i>Debt payment</span>
+    <span><i class="cal-dot goal"></i>Goal deadline</span>
+  `;
+  card.appendChild(legend);
+
+  const grid = document.createElement("div");
+  grid.className = "cal-grid";
+  ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].forEach((d) => {
+    const el = document.createElement("div");
+    el.className = "cal-dow";
+    el.textContent = d;
+    grid.appendChild(el);
+  });
+
+  const firstDow = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  for (let i = 0; i < firstDow; i++) {
+    const el = document.createElement("div");
+    el.className = "cal-day empty";
+    grid.appendChild(el);
+  }
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dayEvents = events.filter((e) => e.day === d);
+    const el = document.createElement("div");
+    el.className = "cal-day" +
+      (isCurrentMonth && d === today.getDate() ? " today" : "") +
+      (dayEvents.length ? " has-events" : "");
+    el.innerHTML = `<div class="cal-day-num">${d}</div>`;
+    if (dayEvents.length) {
+      const dots = document.createElement("div");
+      dots.className = "cal-day-dots";
+      dayEvents.slice(0, 4).forEach((e) => {
+        const dot = document.createElement("span");
+        dot.className = "cal-dot " + e.type;
+        dots.appendChild(dot);
+      });
+      el.appendChild(dots);
+      el.onclick = () => {
+        calendarSelectedDay = d;
+        renderApp();
+      };
+    }
+    grid.appendChild(el);
+  }
+  card.appendChild(grid);
+  root.appendChild(card);
+
+  const panel = document.createElement("div");
+  panel.className = "card";
+  const selDay = calendarSelectedDay;
+  const selEvents = selDay ? events.filter((e) => e.day === selDay) : [];
+  if (!selDay) {
+    panel.innerHTML = `<div class="cal-panel-title">Select a date</div><div class="empty">Tap a day with a dot to see what's due.</div>`;
+  } else {
+    const label = calendarDate.toLocaleString("default", { month: "long" }) + " " + selDay;
+    if (!selEvents.length) {
+      panel.innerHTML = `<div class="cal-panel-title">${label}</div><div class="empty">Nothing due this day.</div>`;
+    } else {
+      panel.innerHTML = `<div class="cal-panel-title">${label}</div>`;
+      selEvents.forEach((e) => {
+        const row = document.createElement("div");
+        row.className = "cal-event-row";
+        row.innerHTML = `
+          <span class="cal-event-label"><i class="cal-dot ${e.type}"></i>${e.label} <span class="cal-event-type">(${CAL_TYPE_LABEL[e.type]})</span></span>
+          <span class="cal-event-amt">${fmt(e.amount || 0)}</span>
+        `;
+        panel.appendChild(row);
+      });
+    }
+  }
+  root.appendChild(panel);
+
+  if (!events.length) {
+    const note = document.createElement("p");
+    note.className = "stat-sub";
+    note.style.padding = "0 4px";
+    note.textContent = "Add a payday to an income source, a due day to a debt, or a deadline to a goal and it'll show up here alongside your bills.";
+    root.appendChild(note);
+  }
 }
 
 let currentTab = "dashboard";
@@ -699,6 +851,7 @@ const RENDERERS = {
   debts: renderDebts,
   networth: renderNetWorth,
   goals: renderGoals,
+  calendar: renderCalendar,
 };
 
 function renderApp() {
