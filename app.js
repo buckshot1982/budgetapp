@@ -139,6 +139,7 @@ const DEFAULT_DATA = {
   ],
   extraPayment: 6500,
   payoffMethod: "snowball",
+  reminderSettings: { enabled: false, daysBefore: 3 },
   assets: [{ name: "TSP Balance", value: 55000 }],
   otherLiabilities: [
     { name: "Mortgage Balance", value: 332244.81 },
@@ -250,6 +251,69 @@ const netWorth = () => totalAssets() - totalOtherLiab() - totalDebt();
 const sortedDebts = () => [...data.debts].sort((a, b) =>
   data.payoffMethod === "avalanche" ? b.apr - a.apr : a.balance - b.balance
 );
+// ---- reminders ----
+// Given a day-of-month (1-31), returns how many days from today until the
+// next occurrence of that day (0 = today, negative never returned — rolls
+// over to next month once the day has passed).
+function daysUntilDue(dueDay, today = new Date()) {
+  if (!dueDay || dueDay < 1 || dueDay > 31) return null;
+  const y = today.getFullYear(), m = today.getMonth();
+  const todayMid = new Date(y, m, today.getDate());
+  const daysInThisMonth = new Date(y, m + 1, 0).getDate();
+  let due = new Date(y, m, Math.min(dueDay, daysInThisMonth));
+  if (due < todayMid) {
+    const daysInNextMonth = new Date(y, m + 2, 0).getDate();
+    due = new Date(y, m + 1, Math.min(dueDay, daysInNextMonth));
+  }
+  return Math.round((due - todayMid) / 86400000);
+}
+
+// Bills + debts (that have a due day set) due within windowDays, soonest first.
+function upcomingItems(windowDays) {
+  const items = [];
+  data.bills.forEach((b) => {
+    const days = daysUntilDue(b.due);
+    if (days !== null && days <= windowDays) items.push({ type: "bill", name: b.name, amount: b.amount, days });
+  });
+  data.debts.forEach((d) => {
+    if (d.dueDay) {
+      const days = daysUntilDue(d.dueDay);
+      if (days !== null && days <= windowDays) items.push({ type: "debt", name: d.name, amount: d.minPay, days });
+    }
+  });
+  items.sort((a, b) => a.days - b.days);
+  return items;
+}
+
+// Fires a browser notification for anything newly inside the reminder
+// window, once per item per day (tracked in localStorage so re-opening the
+// app the same day doesn't spam duplicate notifications).
+function checkAndFireReminders() {
+  const rs = data.reminderSettings;
+  if (!rs || !rs.enabled) return;
+  if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const notifiedKey = "reminderNotified_" + todayStr;
+  let notified = [];
+  try { notified = JSON.parse(storageGet(notifiedKey) || "[]"); } catch (e) {}
+  const items = upcomingItems(rs.daysBefore);
+  let changed = false;
+  items.forEach((it) => {
+    const id = it.type + "_" + it.name;
+    if (notified.includes(id)) return;
+    const when = it.days <= 0 ? "due today" : `due in ${it.days} day${it.days === 1 ? "" : "s"}`;
+    try {
+      new Notification("Finance Command Center", {
+        body: `${it.name} — ${fmt(it.amount)} ${when}`,
+        icon: "icon-192.png",
+      });
+    } catch (e) {}
+    notified.push(id);
+    changed = true;
+  });
+  if (changed) storageSet(notifiedKey, JSON.stringify(notified));
+}
+
 const registerRows = () => {
   let bal = data.register.startingBalance || 0;
   return data.register.transactions.map((t) => {
@@ -382,7 +446,106 @@ function renderList(container, title, key, fields, totalLabel) {
 }
 
 // ---- tab renderers ----
+function renderReminders(root) {
+  const rs = data.reminderSettings || (data.reminderSettings = { enabled: false, daysBefore: 3 });
+  const permission = (typeof Notification !== "undefined") ? Notification.permission : "unsupported";
+  const upcoming = upcomingItems(rs.daysBefore);
+
+  const card = document.createElement("div");
+  card.className = "card";
+  card.innerHTML = `<div class="section-title">Reminders</div>`;
+
+  const toggleRow = document.createElement("div");
+  toggleRow.className = "extra-row";
+  toggleRow.innerHTML = `<span class="field-label" style="margin:0;">Notify me</span>`;
+  const toggleBtn = document.createElement("button");
+  toggleBtn.className = "btn " + (rs.enabled ? "btn-primary" : "btn-secondary");
+  toggleBtn.style.flex = "0 0 auto";
+  toggleBtn.style.padding = "8px 16px";
+  toggleBtn.textContent = rs.enabled ? "On" : "Off";
+  toggleBtn.onclick = () => {
+    if (rs.enabled) {
+      rs.enabled = false;
+      save();
+      renderApp();
+      return;
+    }
+    if (permission === "granted") {
+      rs.enabled = true;
+      save();
+      renderApp();
+      checkAndFireReminders();
+    } else if (permission === "denied") {
+      alert("Notifications are blocked for this site in your browser settings — enable them there, then try again.");
+    } else if (typeof Notification !== "undefined") {
+      Notification.requestPermission().then((p) => {
+        if (p === "granted") {
+          rs.enabled = true;
+          save();
+          checkAndFireReminders();
+        }
+        renderApp();
+      });
+    }
+  };
+  toggleRow.appendChild(toggleBtn);
+  card.appendChild(toggleRow);
+
+  const daysRow = document.createElement("div");
+  daysRow.className = "extra-row";
+  daysRow.innerHTML = `<span class="field-label" style="margin:0;">Days before due date</span>`;
+  const daysInput = document.createElement("input");
+  daysInput.type = "number";
+  daysInput.min = "0";
+  daysInput.value = rs.daysBefore;
+  daysInput.onchange = () => {
+    rs.daysBefore = Math.max(0, parseInt(daysInput.value) || 0);
+    save();
+    renderApp();
+  };
+  daysRow.appendChild(daysInput);
+  card.appendChild(daysRow);
+
+  if (permission === "denied") {
+    const p = document.createElement("p");
+    p.className = "stat-sub";
+    p.style.color = "var(--red)";
+    p.textContent = "Notifications are blocked in this browser for this site — check site settings to re-enable.";
+    card.appendChild(p);
+  } else if (permission !== "unsupported") {
+    const p = document.createElement("p");
+    p.className = "stat-sub";
+    p.textContent = "Notifications only fire while the app is open on this device — open it daily (or keep it installed and reopen it each morning) for reminders to work.";
+    card.appendChild(p);
+  }
+
+  const listWrap = document.createElement("div");
+  listWrap.style.marginTop = "10px";
+  if (upcoming.length === 0) {
+    listWrap.innerHTML = `<div class="empty">Nothing due in the next ${rs.daysBefore} days.</div>`;
+  } else {
+    upcoming.forEach((it) => {
+      const urgent = it.days <= 0;
+      const when = it.days === 0 ? "due today" : `in ${it.days}d`;
+      const row = document.createElement("div");
+      row.className = "row";
+      row.innerHTML = `
+        <div class="row-main">
+          <div class="row-name">${it.name}</div>
+          <div class="row-meta" style="color:${urgent ? "var(--red)" : "var(--gold)"};">${when}</div>
+        </div>
+        <div class="row-amt">${fmt(it.amount)}</div>
+      `;
+      listWrap.appendChild(row);
+    });
+  }
+  card.appendChild(listWrap);
+
+  root.appendChild(card);
+}
+
 function renderDashboard(root) {
+  renderReminders(root);
   const months = projectDebtFreeMonths(data.debts, data.extraPayment, data.payoffMethod);
 
   const regRows = registerRows();
@@ -876,6 +1039,10 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
 
 renderApp();
 startCloudSync();
+checkAndFireReminders();
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") checkAndFireReminders();
+});
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
