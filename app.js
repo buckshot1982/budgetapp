@@ -52,7 +52,7 @@ function startCloudSync() {
       }
       const cloudData = snap.data();
       if (cloudData && cloudData.payload) {
-        data = { ...structuredClone(DEFAULT_DATA), ...JSON.parse(cloudData.payload) };
+        data = normalizeData({ ...structuredClone(DEFAULT_DATA), ...JSON.parse(cloudData.payload) });
         storageSet(STORAGE_KEY, cloudData.payload);
         renderApp();
       }
@@ -158,13 +158,17 @@ const DEFAULT_DATA = {
     { name: "Rental Property Down Payment", target: 40000, current: 0 },
     { name: "RV Fund", target: 60000, current: 0 },
   ],
-  register: {
-    startingBalance: 0,
-    transactions: [
-      // { date: "07/01", desc: "Paycheck", type: "deposit", amount: 500 },
-    ],
-  },
+  // Which bills have been checked off, by month: { "2026-11": { "bill:Mortgage": true } }
+  paid: {},
 };
+
+// Cleans up data loaded from storage or the cloud: drops the old checkbook
+// register and makes sure the paid-bills map exists.
+function normalizeData(d) {
+  delete d.register;
+  if (!d.paid || typeof d.paid !== "object") d.paid = {};
+  return d;
+}
 
 // Wrap localStorage so a sandboxed preview that blocks it (throws instead of
 // just being unavailable) can't break saves/re-renders — falls back to an
@@ -192,7 +196,7 @@ function storageSet(key, value) {
 function loadData() {
   try {
     const raw = storageGet(STORAGE_KEY);
-    if (raw) return { ...structuredClone(DEFAULT_DATA), ...JSON.parse(raw) };
+    if (raw) return normalizeData({ ...structuredClone(DEFAULT_DATA), ...JSON.parse(raw) });
   } catch (e) {}
   return structuredClone(DEFAULT_DATA);
 }
@@ -251,38 +255,85 @@ const netWorth = () => totalAssets() - totalOtherLiab() - totalDebt();
 const sortedDebts = () => [...data.debts].sort((a, b) =>
   data.payoffMethod === "avalanche" ? b.apr - a.apr : a.balance - b.balance
 );
-// ---- reminders ----
-// Given a day-of-month (1-31), returns how many days from today until the
-// next occurrence of that day (0 = today, negative never returned — rolls
-// over to next month once the day has passed).
-function daysUntilDue(dueDay, today = new Date()) {
-  if (!dueDay || dueDay < 1 || dueDay > 31) return null;
-  const y = today.getFullYear(), m = today.getMonth();
-  const todayMid = new Date(y, m, today.getDate());
-  const daysInThisMonth = new Date(y, m + 1, 0).getDate();
-  let due = new Date(y, m, Math.min(dueDay, daysInThisMonth));
-  if (due < todayMid) {
-    const daysInNextMonth = new Date(y, m + 2, 0).getDate();
-    due = new Date(y, m + 1, Math.min(dueDay, daysInNextMonth));
-  }
-  return Math.round((due - todayMid) / 86400000);
+// ---- monthly bill checklist ----
+function monthKey(y, m) { return `${y}-${String(m + 1).padStart(2, "0")}`; }
+function itemId(type, name) { return type + ":" + name; }
+function isPaid(y, m, id) {
+  const month = data.paid && data.paid[monthKey(y, m)];
+  return !!(month && month[id]);
+}
+function togglePaid(y, m, id) {
+  if (!data.paid) data.paid = {};
+  const k = monthKey(y, m);
+  const month = data.paid[k] || (data.paid[k] = {});
+  if (month[id]) delete month[id];
+  else month[id] = true;
+  if (Object.keys(month).length === 0) delete data.paid[k];
+  save();
+  renderApp();
 }
 
-// Bills + debts (that have a due day set) due within windowDays, soonest first.
-function upcomingItems(windowDays) {
+// Every bill due in a given month (plus debts with a due day that aren't
+// already listed as a bill), with its paid status for that month. A bill due
+// on the 31st lands on the last day of shorter months.
+function billsForMonth(y, m) {
+  const dim = new Date(y, m + 1, 0).getDate();
+  const billNames = new Set(data.bills.map((b) => b.name));
   const items = [];
   data.bills.forEach((b) => {
-    const days = daysUntilDue(b.due);
-    if (days !== null && days <= windowDays) items.push({ type: "bill", name: b.name, amount: b.amount, days });
+    if (b.due >= 1) items.push({ id: itemId("bill", b.name), type: "bill", name: b.name, amount: b.amount || 0, day: Math.min(b.due, dim) });
   });
   data.debts.forEach((d) => {
-    if (d.dueDay) {
-      const days = daysUntilDue(d.dueDay);
-      if (days !== null && days <= windowDays) items.push({ type: "debt", name: d.name, amount: d.minPay, days });
+    if (d.dueDay >= 1 && !billNames.has(d.name)) {
+      items.push({ id: itemId("debt", d.name), type: "debt", name: d.name, amount: d.minPay || 0, day: Math.min(d.dueDay, dim) });
     }
   });
+  items.forEach((it) => { it.paid = isPaid(y, m, it.id); });
+  items.sort((a, b) => a.day - b.day || a.name.localeCompare(b.name));
+  return items;
+}
+
+function paydaysForMonth(y, m) {
+  const dim = new Date(y, m + 1, 0).getDate();
+  return data.income
+    .filter((i) => i.payday >= 1)
+    .map((i) => ({ name: i.name, amount: i.amount || 0, day: Math.min(i.payday, dim) }));
+}
+
+// Unpaid bills that are past due this month or due within windowDays
+// (looks into next month too). Checked-off bills are skipped.
+function upcomingItems(windowDays) {
+  const today = new Date();
+  const todayMid = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const items = [];
+  for (let offset = 0; offset <= 1; offset++) {
+    const ref = new Date(today.getFullYear(), today.getMonth() + offset, 1);
+    const y = ref.getFullYear(), m = ref.getMonth();
+    billsForMonth(y, m).forEach((it) => {
+      if (it.paid) return;
+      const days = Math.round((new Date(y, m, it.day) - todayMid) / 86400000);
+      if (days <= windowDays) items.push({ ...it, days, y, m });
+    });
+  }
   items.sort((a, b) => a.days - b.days);
   return items;
+}
+
+// Square check button used everywhere a bill can be checked off.
+function checkButton(paid, onToggle) {
+  const btn = document.createElement("button");
+  btn.className = "chk" + (paid ? " on" : "");
+  btn.setAttribute("aria-label", paid ? "Mark as not paid" : "Mark as paid");
+  btn.textContent = paid ? "✓" : "";
+  btn.onclick = (e) => { e.stopPropagation(); onToggle(); };
+  return btn;
+}
+
+function switchTab(name) {
+  currentTab = name;
+  document.querySelectorAll(".tab-btn").forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
+  window.scrollTo(0, 0);
+  renderApp();
 }
 
 // Fires a browser notification for anything newly inside the reminder
@@ -299,9 +350,9 @@ function checkAndFireReminders() {
   const items = upcomingItems(rs.daysBefore);
   let changed = false;
   items.forEach((it) => {
-    const id = it.type + "_" + it.name;
+    const id = it.id + "_" + monthKey(it.y, it.m);
     if (notified.includes(id)) return;
-    const when = it.days <= 0 ? "due today" : `due in ${it.days} day${it.days === 1 ? "" : "s"}`;
+    const when = it.days < 0 ? "past due" : it.days === 0 ? "due today" : `due in ${it.days} day${it.days === 1 ? "" : "s"}`;
     try {
       new Notification("Finance Command Center", {
         body: `${it.name} — ${fmt(it.amount)} ${when}`,
@@ -313,14 +364,6 @@ function checkAndFireReminders() {
   });
   if (changed) storageSet(notifiedKey, JSON.stringify(notified));
 }
-
-const registerRows = () => {
-  let bal = data.register.startingBalance || 0;
-  return data.register.transactions.map((t) => {
-    bal += t.type === "withdrawal" ? -(t.amount || 0) : (t.amount || 0);
-    return { ...t, runningBalance: bal };
-  });
-};
 
 // ---- generic modal for add/edit ----
 function openModal(title, fields, initial, onSave) {
@@ -453,7 +496,7 @@ function renderReminders(root) {
 
   const card = document.createElement("div");
   card.className = "card";
-  card.innerHTML = `<div class="section-title">Reminders</div>`;
+  card.innerHTML = `<div class="section-title">Coming up</div>`;
 
   const toggleRow = document.createElement("div");
   toggleRow.className = "extra-row";
@@ -522,20 +565,25 @@ function renderReminders(root) {
   const listWrap = document.createElement("div");
   listWrap.style.marginTop = "10px";
   if (upcoming.length === 0) {
-    listWrap.innerHTML = `<div class="empty">Nothing due in the next ${rs.daysBefore} days.</div>`;
+    listWrap.innerHTML = `<div class="empty">Nothing unpaid in the next ${rs.daysBefore} days.</div>`;
   } else {
     upcoming.forEach((it) => {
       const urgent = it.days <= 0;
-      const when = it.days === 0 ? "due today" : `in ${it.days}d`;
+      const when = it.days < 0 ? `${-it.days}d past due` : it.days === 0 ? "due today" : `in ${it.days}d`;
       const row = document.createElement("div");
       row.className = "row";
-      row.innerHTML = `
-        <div class="row-main">
-          <div class="row-name">${it.name}</div>
-          <div class="row-meta" style="color:${urgent ? "var(--red)" : "var(--gold)"};">${when}</div>
-        </div>
-        <div class="row-amt">${fmt(it.amount)}</div>
+      row.appendChild(checkButton(false, () => togglePaid(it.y, it.m, it.id)));
+      const main = document.createElement("div");
+      main.className = "row-main";
+      main.innerHTML = `
+        <div class="row-name">${it.name}</div>
+        <div class="row-meta" style="color:${urgent ? "var(--red)" : "var(--gold)"};">${when}</div>
       `;
+      row.appendChild(main);
+      const amt = document.createElement("div");
+      amt.className = "row-amt";
+      amt.textContent = fmt(it.amount);
+      row.appendChild(amt);
       listWrap.appendChild(row);
     });
   }
@@ -545,17 +593,10 @@ function renderReminders(root) {
 }
 
 function renderDashboard(root) {
-  renderReminders(root);
   const months = projectDebtFreeMonths(data.debts, data.extraPayment, data.payoffMethod);
 
-  const regRows = registerRows();
-  const checkingBalance = regRows.length
-    ? regRows[regRows.length - 1].runningBalance
-    : (data.register.startingBalance || 0);
-  const balCard = document.createElement("div");
-  balCard.className = "card";
-  balCard.innerHTML = `<p class="stat-label">Checking balance</p><p class="stat-value ${checkingBalance >= 0 ? "green" : "red"}" style="font-size:32px;">${fmt(checkingBalance)}</p>`;
-  root.appendChild(balCard);
+  root.appendChild(monthProgressCard(new Date().getFullYear(), new Date().getMonth(), true));
+  renderReminders(root);
 
   const stats = document.createElement("div");
   stats.className = "stats-grid";
@@ -635,95 +676,6 @@ function renderBudget(root) {
   renderList(root, "Allotments", "allotments", [{ key: "name", label: "Item" }, { key: "amount", label: "$/mo", type: "number" }], "Total allotments");
   renderList(root, "Bills", "bills", [{ key: "name", label: "Bill" }, { key: "due", label: "Due day", type: "number" }, { key: "amount", label: "$/mo", type: "number" }], "Total bills");
 
-  renderRegister(root);
-}
-
-const REGISTER_FIELDS = [
-  { key: "date", label: "Date" },
-  { key: "desc", label: "Description" },
-  { key: "type", label: "Type", type: "select", options: [
-      { value: "deposit", label: "Deposit" },
-      { value: "withdrawal", label: "Withdrawal" },
-    ] },
-  { key: "amount", label: "Amount", type: "number" },
-];
-
-function renderRegister(root) {
-  const card = document.createElement("div");
-  card.className = "card";
-  card.innerHTML = `<div class="section-title">Checkbook register<button class="add-btn">+ Add</button></div>`;
-
-  const startRow = document.createElement("div");
-  startRow.className = "extra-row";
-  startRow.innerHTML = `<span class="field-label" style="margin:0;">Starting balance</span>`;
-  const startInput = document.createElement("input");
-  startInput.type = "number";
-  startInput.step = "any";
-  startInput.value = data.register.startingBalance;
-  startInput.onchange = () => {
-    data.register.startingBalance = parseFloat(startInput.value) || 0;
-    save();
-    renderApp();
-  };
-  startRow.appendChild(startInput);
-  card.appendChild(startRow);
-
-  const rows = registerRows();
-  if (rows.length === 0) {
-    const e = document.createElement("div");
-    e.className = "empty";
-    e.textContent = "No entries yet — tap + Add.";
-    card.appendChild(e);
-  } else {
-    const table = document.createElement("table");
-    table.className = "reg-table";
-    table.innerHTML = `<thead><tr><th>Date</th><th>Description</th><th>Deposit</th><th>Withdrawal</th><th>Balance</th><th></th></tr></thead>`;
-    const tbody = document.createElement("tbody");
-    rows.forEach((r, idx) => {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td>${r.date || ""}</td>
-        <td>${r.desc || ""}</td>
-        <td class="amt-pos">${r.type === "deposit" ? fmt(r.amount) : ""}</td>
-        <td class="amt-neg">${r.type === "withdrawal" ? fmt(r.amount) : ""}</td>
-        <td class="reg-bal">${fmt(r.runningBalance)}</td>
-        <td><button class="reg-del-btn">&times;</button></td>
-      `;
-      tr.onclick = (e) => {
-        if (e.target.closest(".reg-del-btn")) return;
-        openModal("Edit entry", REGISTER_FIELDS, data.register.transactions[idx], (updated) => {
-          data.register.transactions[idx] = updated;
-          save();
-          renderApp();
-        });
-      };
-      tr.querySelector(".reg-del-btn").onclick = (e) => {
-        e.stopPropagation();
-        data.register.transactions.splice(idx, 1);
-        save();
-        renderApp();
-      };
-      tbody.appendChild(tr);
-    });
-    table.appendChild(tbody);
-    card.appendChild(table);
-  }
-
-  const endBal = rows.length ? rows[rows.length - 1].runningBalance : (data.register.startingBalance || 0);
-  const endBalRow = document.createElement("div");
-  endBalRow.className = "total-row";
-  endBalRow.innerHTML = `<span>Current balance</span><span>${fmt(endBal)}</span>`;
-  card.appendChild(endBalRow);
-
-  card.querySelector(".add-btn").onclick = () => {
-    openModal("Add entry", REGISTER_FIELDS, null, (result) => {
-      data.register.transactions.push(result);
-      save();
-      renderApp();
-    });
-  };
-
-  root.appendChild(card);
 }
 
 function renderDebts(root) {
@@ -856,52 +808,63 @@ function renderGoals(root) {
   root.appendChild(card);
 }
 
-// ---- calendar ----
+// ---- calendar: monthly bill checklist ----
 let calendarDate = new Date();
 let calendarSelectedDay = null;
-const CAL_TYPE_LABEL = { bill: "Bill due", income: "Income", debt: "Debt payment", goal: "Goal deadline" };
+let calendarFilter = "all"; // "all" | "unpaid"
 
-function calendarEventsForMonth(year, month) {
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const events = [];
-  data.bills.forEach((b) => {
-    if (b.due >= 1 && b.due <= daysInMonth) events.push({ day: b.due, type: "bill", label: b.name, amount: b.amount });
-  });
-  data.debts.forEach((d) => {
-    if (d.dueDay >= 1 && d.dueDay <= daysInMonth) events.push({ day: d.dueDay, type: "debt", label: d.name, amount: d.minPay });
-  });
-  data.income.forEach((i) => {
-    if (i.payday >= 1 && i.payday <= daysInMonth) events.push({ day: i.payday, type: "income", label: i.name, amount: i.amount });
-  });
-  data.goals.forEach((g) => {
-    if (g.deadline) {
-      const gd = new Date(g.deadline + "T00:00:00");
-      if (!isNaN(gd) && gd.getFullYear() === year && gd.getMonth() === month) {
-        events.push({ day: gd.getDate(), type: "goal", label: g.name, amount: g.target });
-      }
-    }
-  });
-  return events;
+// Paid / left-to-pay summary for one month. On the dashboard it links to the calendar.
+function monthProgressCard(y, m, linkToCalendar) {
+  const items = billsForMonth(y, m);
+  const total = items.reduce((s, it) => s + it.amount, 0);
+  const paidAmt = items.filter((it) => it.paid).reduce((s, it) => s + it.amount, 0);
+  const paidCount = items.filter((it) => it.paid).length;
+  const left = total - paidAmt;
+  const pct = total > 0 ? (paidAmt / total) * 100 : (items.length && paidCount === items.length ? 100 : 0);
+  const monthName = new Date(y, m, 1).toLocaleString("default", { month: "long" });
+
+  const card = document.createElement("div");
+  card.className = "card";
+  if (linkToCalendar) {
+    card.style.cursor = "pointer";
+    card.onclick = () => {
+      calendarDate = new Date(y, m, 1);
+      calendarSelectedDay = null;
+      switchTab("calendar");
+    };
+  }
+  card.innerHTML = `
+    <p class="stat-label">${monthName} bills</p>
+    <p class="stat-value ${left > 0.005 ? "gold" : "green"}" style="font-size:30px;">${left > 0.005 ? fmt(left) + " left" : "All paid"}</p>
+    <p class="stat-sub">${paidCount} of ${items.length} paid, ${fmt(paidAmt)} of ${fmt(total)}</p>
+    <div class="progress-track" style="margin-top:8px;"><div class="progress-fill" style="width:${Math.max(0, Math.min(100, pct))}%;background:var(--green);"></div></div>
+    ${linkToCalendar ? `<p class="stat-sub" style="margin-top:8px;">Tap to open the bill calendar</p>` : ""}
+  `;
+  return card;
 }
 
 function renderCalendar(root) {
   const year = calendarDate.getFullYear();
   const month = calendarDate.getMonth();
-  const events = calendarEventsForMonth(year, month);
+  const items = billsForMonth(year, month);
+  const paydays = paydaysForMonth(year, month);
   const today = new Date();
+  const todayMid = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   const isCurrentMonth = today.getFullYear() === year && today.getMonth() === month;
+  const isPastDay = (d) => new Date(year, month, d) < todayMid;
 
-  const card = document.createElement("div");
-  card.className = "card";
-
+  // Month navigation
+  const navCard = document.createElement("div");
+  navCard.className = "card";
   const nav = document.createElement("div");
   nav.className = "cal-nav";
+  nav.style.marginBottom = "0";
   nav.innerHTML = `
     <span class="cal-month-label">${calendarDate.toLocaleString("default", { month: "long", year: "numeric" })}</span>
     <div class="cal-nav-btns">
-      <button class="cal-prev">&lsaquo;</button>
+      <button class="cal-prev" aria-label="Previous month">&lsaquo;</button>
       <button class="cal-today-btn">Today</button>
-      <button class="cal-next">&rsaquo;</button>
+      <button class="cal-next" aria-label="Next month">&rsaquo;</button>
     </div>
   `;
   nav.querySelector(".cal-prev").onclick = () => {
@@ -918,18 +881,25 @@ function renderCalendar(root) {
     calendarDate = new Date();
     calendarSelectedDay = new Date().getDate();
     renderApp();
+    scrollToDay(calendarSelectedDay);
   };
-  card.appendChild(nav);
+  navCard.appendChild(nav);
+  root.appendChild(navCard);
 
+  root.appendChild(monthProgressCard(year, month, false));
+
+  // Calendar grid
+  const gridCard = document.createElement("div");
+  gridCard.className = "card";
   const legend = document.createElement("div");
   legend.className = "cal-legend";
   legend.innerHTML = `
-    <span><i class="cal-dot bill"></i>Bill due</span>
-    <span><i class="cal-dot income"></i>Income</span>
-    <span><i class="cal-dot debt"></i>Debt payment</span>
-    <span><i class="cal-dot goal"></i>Goal deadline</span>
+    <span><i class="cal-dot due"></i>Unpaid</span>
+    <span><i class="cal-dot late"></i>Past due</span>
+    <span><i class="cal-dot done"></i>All paid</span>
+    ${paydays.length ? `<span><i class="cal-dot pay"></i>Payday</span>` : ""}
   `;
-  card.appendChild(legend);
+  gridCard.appendChild(legend);
 
   const grid = document.createElement("div");
   grid.className = "cal-grid";
@@ -939,7 +909,6 @@ function renderCalendar(root) {
     el.textContent = d;
     grid.appendChild(el);
   });
-
   const firstDow = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   for (let i = 0; i < firstDow; i++) {
@@ -948,63 +917,137 @@ function renderCalendar(root) {
     grid.appendChild(el);
   }
   for (let d = 1; d <= daysInMonth; d++) {
-    const dayEvents = events.filter((e) => e.day === d);
+    const dayItems = items.filter((it) => it.day === d);
+    const unpaid = dayItems.filter((it) => !it.paid).length;
+    const hasPay = paydays.some((p) => p.day === d);
     const el = document.createElement("div");
     el.className = "cal-day" +
       (isCurrentMonth && d === today.getDate() ? " today" : "") +
-      (dayEvents.length ? " has-events" : "");
+      (calendarSelectedDay === d ? " selected" : "") +
+      (dayItems.length || hasPay ? " has-events" : "");
     el.innerHTML = `<div class="cal-day-num">${d}</div>`;
-    if (dayEvents.length) {
-      const dots = document.createElement("div");
-      dots.className = "cal-day-dots";
-      dayEvents.slice(0, 4).forEach((e) => {
-        const dot = document.createElement("span");
-        dot.className = "cal-dot " + e.type;
-        dots.appendChild(dot);
-      });
-      el.appendChild(dots);
+    if (dayItems.length) {
+      const badge = document.createElement("div");
+      if (unpaid === 0) {
+        badge.className = "cal-badge done";
+        badge.textContent = "✓";
+      } else {
+        badge.className = "cal-badge " + (isPastDay(d) ? "late" : "due");
+        badge.textContent = unpaid;
+      }
+      el.appendChild(badge);
+    }
+    if (hasPay) {
+      const bar = document.createElement("div");
+      bar.className = "cal-pay";
+      el.appendChild(bar);
+    }
+    if (dayItems.length || hasPay) {
       el.onclick = () => {
-        calendarSelectedDay = d;
+        calendarSelectedDay = calendarSelectedDay === d ? null : d;
         renderApp();
+        if (calendarSelectedDay) scrollToDay(d);
       };
     }
     grid.appendChild(el);
   }
-  card.appendChild(grid);
-  root.appendChild(card);
+  gridCard.appendChild(grid);
+  root.appendChild(gridCard);
 
-  const panel = document.createElement("div");
-  panel.className = "card";
-  const selDay = calendarSelectedDay;
-  const selEvents = selDay ? events.filter((e) => e.day === selDay) : [];
-  if (!selDay) {
-    panel.innerHTML = `<div class="cal-panel-title">Select a date</div><div class="empty">Tap a day with a dot to see what's due.</div>`;
-  } else {
-    const label = calendarDate.toLocaleString("default", { month: "long" }) + " " + selDay;
-    if (!selEvents.length) {
-      panel.innerHTML = `<div class="cal-panel-title">${label}</div><div class="empty">Nothing due this day.</div>`;
-    } else {
-      panel.innerHTML = `<div class="cal-panel-title">${label}</div>`;
-      selEvents.forEach((e) => {
-        const row = document.createElement("div");
-        row.className = "cal-event-row";
-        row.innerHTML = `
-          <span class="cal-event-label"><i class="cal-dot ${e.type}"></i>${e.label} <span class="cal-event-type">(${CAL_TYPE_LABEL[e.type]})</span></span>
-          <span class="cal-event-amt">${fmt(e.amount || 0)}</span>
-        `;
-        panel.appendChild(row);
-      });
-    }
-  }
-  root.appendChild(panel);
+  // Checklist
+  const listCard = document.createElement("div");
+  listCard.className = "card";
+  listCard.innerHTML = `<div class="section-title">Bill checklist<button class="add-btn">+ Add bill</button></div>`;
+  listCard.querySelector(".add-btn").onclick = () => {
+    const fields = [{ key: "name", label: "Bill" }, { key: "due", label: "Due day", type: "number" }, { key: "amount", label: "$/mo", type: "number" }];
+    openModal("Add bill", fields, { name: "", due: calendarSelectedDay || "", amount: "" }, (result) => {
+      data.bills.push(result);
+      save();
+      renderApp();
+    });
+  };
 
-  if (!events.length) {
-    const note = document.createElement("p");
-    note.className = "stat-sub";
-    note.style.padding = "0 4px";
-    note.textContent = "Add a payday to an income source, a due day to a debt, or a deadline to a goal and it'll show up here alongside your bills.";
-    root.appendChild(note);
+  const toggle = document.createElement("div");
+  toggle.className = "toggle-group";
+  toggle.style.marginBottom = "6px";
+  [["all", "All bills"], ["unpaid", "Unpaid only"]].forEach(([val, label]) => {
+    const b = document.createElement("button");
+    b.className = "toggle-btn" + (calendarFilter === val ? " active" : "");
+    b.textContent = label;
+    b.onclick = () => { calendarFilter = val; renderApp(); };
+    toggle.appendChild(b);
+  });
+  listCard.appendChild(toggle);
+
+  const shown = calendarFilter === "unpaid" ? items.filter((it) => !it.paid) : items;
+  const shownPaydays = calendarFilter === "unpaid" ? [] : paydays;
+  const days = [...new Set([...shown.map((it) => it.day), ...shownPaydays.map((p) => p.day)])].sort((a, b) => a - b);
+
+  if (items.length === 0) {
+    const e = document.createElement("div");
+    e.className = "empty";
+    e.textContent = "No bills set up yet. Tap + Add bill to start your checklist.";
+    listCard.appendChild(e);
+  } else if (days.length === 0) {
+    const e = document.createElement("div");
+    e.className = "empty";
+    e.textContent = "Every bill this month is checked off.";
+    listCard.appendChild(e);
   }
+
+  days.forEach((d) => {
+    const group = document.createElement("div");
+    group.className = "cal-group" + (calendarSelectedDay === d ? " selected" : "");
+    group.id = "cal-day-" + d;
+    const dayBills = shown.filter((it) => it.day === d);
+    const dayTotal = dayBills.reduce((s, it) => s + it.amount, 0);
+    const dateLabel = new Date(year, month, d).toLocaleString("default", { weekday: "short", month: "short", day: "numeric" });
+    group.innerHTML = `<div class="cal-group-head"><span>${dateLabel}</span><span>${dayBills.length ? fmt(dayTotal) : ""}</span></div>`;
+
+    shownPaydays.filter((p) => p.day === d).forEach((p) => {
+      const row = document.createElement("div");
+      row.className = "row bill-row payday";
+      row.innerHTML = `
+        <span class="pay-mark">$</span>
+        <div class="row-main"><div class="row-name">${p.name}</div><div class="row-meta">Payday</div></div>
+        <div class="row-amt green">+${fmt(p.amount)}</div>
+      `;
+      group.appendChild(row);
+    });
+
+    dayBills.forEach((it) => {
+      const late = !it.paid && isPastDay(d);
+      const row = document.createElement("div");
+      row.className = "row bill-row" + (it.paid ? " paid" : "") + (late ? " late" : "");
+      row.style.cursor = "pointer";
+      row.onclick = () => togglePaid(year, month, it.id);
+      row.appendChild(checkButton(it.paid, () => togglePaid(year, month, it.id)));
+      const main = document.createElement("div");
+      main.className = "row-main";
+      const status = it.paid ? "Paid" : late ? "Past due" : (it.type === "debt" ? "Debt payment" : "Not paid yet");
+      main.innerHTML = `<div class="row-name">${it.name}</div><div class="row-meta">${status}</div>`;
+      row.appendChild(main);
+      const amt = document.createElement("div");
+      amt.className = "row-amt";
+      amt.textContent = fmt(it.amount);
+      row.appendChild(amt);
+      group.appendChild(row);
+    });
+    listCard.appendChild(group);
+  });
+
+  root.appendChild(listCard);
+
+  const note = document.createElement("p");
+  note.className = "stat-sub";
+  note.style.padding = "0 4px";
+  note.textContent = "Tap a bill to check it off. Each month starts fresh, and checkmarks sync between your phones. Edit amounts and due days on the Budget tab.";
+  root.appendChild(note);
+}
+
+function scrollToDay(d) {
+  const el = document.getElementById("cal-day-" + d);
+  if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 let currentTab = "dashboard";
@@ -1029,12 +1072,7 @@ function renderApp() {
 }
 
 document.querySelectorAll(".tab-btn").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    currentTab = btn.dataset.tab;
-    document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
-    btn.classList.add("active");
-    renderApp();
-  });
+  btn.addEventListener("click", () => switchTab(btn.dataset.tab));
 });
 
 renderApp();

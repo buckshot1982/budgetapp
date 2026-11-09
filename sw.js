@@ -1,4 +1,4 @@
-const CACHE_NAME = "finance-hq-v4";
+const CACHE_NAME = "finance-hq-v5";
 const FILES_TO_CACHE = [
   "./index.html",
   "./app.js",

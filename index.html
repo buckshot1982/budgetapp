@@ -78,19 +78,6 @@
     background: var(--surface); border: 1px solid var(--border); color: var(--text);
     border-radius: 6px; padding: 6px 8px; font-size: 17px; width: 100%;
   }
-  .reg-table { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 4px; }
-  .reg-table th {
-    text-align: left; color: var(--text-dim); font-weight: 600; padding: 6px 4px;
-    border-bottom: 1px solid var(--border); text-transform: uppercase;
-    letter-spacing: 0.04em; font-size: 12px;
-  }
-  .reg-table td { padding: 7px 4px; border-bottom: 1px solid var(--border); vertical-align: top; }
-  .reg-table tbody tr:last-child td { border-bottom: none; }
-  .reg-table tbody tr { cursor: pointer; }
-  .reg-table .amt-pos { color: var(--green); white-space: nowrap; }
-  .reg-table .amt-neg { color: var(--red); white-space: nowrap; }
-  .reg-table .reg-bal { font-weight: 700; white-space: nowrap; }
-  .reg-del-btn { background: none; border: none; color: var(--text-dim); font-size: 19px; padding: 2px 6px; }
   .field-label { font-size: 14px; color: var(--text-dim); margin-bottom: 3px; display: block; }
   .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: flex-end; z-index: 20; }
   .modal { background: var(--card); border-radius: 16px 16px 0 0; padding: 18px; width: 100%; max-height: 80vh; overflow-y: auto; }
@@ -112,13 +99,29 @@
   .cal-legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; color: var(--text-dim); margin-bottom: 10px; }
   .cal-legend span { display: flex; align-items: center; gap: 5px; }
   .cal-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
-  .cal-dot.bill { background: var(--red); }
-  .cal-dot.income { background: var(--green); }
-  .cal-dot.debt { background: var(--blue); }
-  .cal-dot.goal { background: var(--gold); }
+  .cal-dot.due { background: var(--gold); }
+  .cal-dot.late { background: var(--red); }
+  .cal-dot.done { background: var(--green); }
+  .cal-dot.pay { background: var(--green); width: 12px; height: 3px; border-radius: 2px; }
   .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
   .cal-dow { text-align: center; font-size: 11px; color: var(--text-dim); padding-bottom: 4px; text-transform: uppercase; letter-spacing: 0.04em; }
-  .cal-day { background: var(--surface); border-radius: 8px; min-height: 46px; padding: 4px; border: 1px solid transparent; }
+  .cal-day { position: relative; background: var(--surface); border-radius: 8px; min-height: 52px; padding: 4px; border: 1px solid transparent; }
+  .cal-day.selected { border-color: var(--text); }
+  .cal-badge { margin-top: 4px; font-size: 13px; font-weight: 800; border-radius: 6px; padding: 1px 0; text-align: center; }
+  .cal-badge.due { background: var(--gold-dim); color: var(--gold); }
+  .cal-badge.late { background: var(--red-dim); color: var(--red); }
+  .cal-badge.done { background: var(--green-dim); color: var(--green); }
+  .cal-pay { position: absolute; left: 5px; right: 5px; bottom: 3px; height: 3px; border-radius: 2px; background: var(--green); }
+  .cal-group { scroll-margin-top: 90px; }
+  .cal-group-head { display: flex; justify-content: space-between; font-size: 14px; color: var(--text-dim); font-weight: 700; padding: 12px 0 2px; }
+  .cal-group.selected .cal-group-head { color: var(--gold); }
+  .chk { width: 30px; height: 30px; flex-shrink: 0; border-radius: 8px; border: 2px solid #4a4a4a; background: var(--surface); color: #04261b; font-size: 17px; font-weight: 900; padding: 0; display: flex; align-items: center; justify-content: center; }
+  .chk.on { background: var(--green); border-color: var(--green); }
+  .bill-row { gap: 12px; }
+  .bill-row.paid .row-name { text-decoration: line-through; color: var(--text-dim); }
+  .bill-row.paid .row-amt { color: var(--text-dim); }
+  .bill-row.late .row-meta { color: var(--red); }
+  .pay-mark { width: 30px; height: 30px; flex-shrink: 0; border-radius: 8px; background: var(--green-dim); color: var(--green); font-weight: 800; display: flex; align-items: center; justify-content: center; }
   .cal-day.empty { background: transparent; }
   .cal-day.today { border-color: var(--gold); }
   .cal-day.has-events { cursor: pointer; }
