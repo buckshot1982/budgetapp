@@ -78,14 +78,6 @@ const DEFAULT_DATA = {
     { name: "ASG Payment", amount: 8333.34 },
     { name: "Diana's Income", amount: 3333.33 },
   ],
-  deductions: [
-    { name: "Federal Tax", amount: 1760.06 },
-    { name: "FICA Social Security", amount: 723.33 },
-    { name: "FICA Medicare", amount: 169.17 },
-    { name: "GA State Tax", amount: 608.26 },
-    { name: "Traditional 401k/IRA", amount: 833.33 },
-    { name: "Roth 401k/IRA", amount: 833.33 },
-  ],
   allotments: [
     { name: "TSP Loan 1", amount: 146.90 },
     { name: "TSP Loan 2", amount: 339.30 },
@@ -166,6 +158,7 @@ const DEFAULT_DATA = {
 // register and makes sure the paid-bills map exists.
 function normalizeData(d) {
   delete d.register;
+  delete d.deductions;
   if (!d.paid || typeof d.paid !== "object") d.paid = {};
   return d;
 }
@@ -242,11 +235,10 @@ function projectDebtFreeMonths(debts, extra, method, maxMonths = 240) {
 }
 
 // ---- computed getters ----
-const gross = () => data.income.reduce((s, i) => s + (i.amount || 0), 0);
-const totalDeductions = () => data.deductions.reduce((s, i) => s + (i.amount || 0), 0);
+const totalIncome = () => data.income.reduce((s, i) => s + (i.amount || 0), 0);
 const totalAllotments = () => data.allotments.reduce((s, i) => s + (i.amount || 0), 0);
 const totalBills = () => data.bills.reduce((s, i) => s + (i.amount || 0), 0);
-const netTakeHome = () => gross() - totalDeductions() - totalAllotments();
+const netTakeHome = () => totalIncome() - totalAllotments();
 const remaining = () => netTakeHome() - totalBills();
 const totalDebt = () => data.debts.reduce((s, d) => s + (d.balance || 0), 0);
 const totalAssets = () => data.assets.reduce((s, a) => s + (a.value || 0), 0);
@@ -426,7 +418,7 @@ function openModal(title, fields, initial, onSave) {
   document.body.appendChild(backdrop);
 }
 
-// ---- list section renderer (income/deductions/allotments/bills/assets/liabilities) ----
+// ---- list section renderer (income/allotments/bills/assets/liabilities) ----
 function renderList(container, title, key, fields, totalLabel) {
   const card = document.createElement("div");
   card.className = "card";
@@ -659,8 +651,8 @@ function renderBudget(root) {
   const stats = document.createElement("div");
   stats.className = "stats-grid";
   [
-    ["Gross income", fmt(gross()), ""],
-    ["Net take-home", fmt(netTakeHome()), "gold"],
+    ["Take-home pay", fmt(totalIncome()), ""],
+    ["After allotments", fmt(netTakeHome()), "gold"],
     ["Total bills", fmt(totalBills()), "red"],
     ["Remaining", fmt(remaining()), remaining() >= 0 ? "green" : "red"],
   ].forEach(([label, val, cls]) => {
@@ -671,8 +663,7 @@ function renderBudget(root) {
   });
   root.appendChild(stats);
 
-  renderList(root, "Income", "income", [{ key: "name", label: "Source" }, { key: "amount", label: "$/mo", type: "number" }, { key: "payday", label: "Payday (day of month)", type: "number" }], "Gross monthly pay");
-  renderList(root, "Deductions", "deductions", [{ key: "name", label: "Item" }, { key: "amount", label: "$/mo", type: "number" }], "Total deductions");
+  renderList(root, "Income", "income", [{ key: "name", label: "Source" }, { key: "amount", label: "$/mo", type: "number" }, { key: "payday", label: "Payday (day of month)", type: "number" }], "Total take-home pay");
   renderList(root, "Allotments", "allotments", [{ key: "name", label: "Item" }, { key: "amount", label: "$/mo", type: "number" }], "Total allotments");
   renderList(root, "Bills", "bills", [{ key: "name", label: "Bill" }, { key: "due", label: "Due day", type: "number" }, { key: "amount", label: "$/mo", type: "number" }], "Total bills");
 
