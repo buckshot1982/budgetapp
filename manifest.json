@@ -4,8 +4,8 @@
   "description": "Budget, debt payoff, net worth, and goals — all in one place.",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#0f172a",
-  "theme_color": "#0f172a",
+  "background_color": "#0c1a2c",
+  "theme_color": "#0c1a2c",
   "orientation": "portrait",
   "icons": [
     { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },

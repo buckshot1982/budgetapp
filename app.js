@@ -78,11 +78,9 @@ const DEFAULT_DATA = {
     { name: "ASG Payment", amount: 8333.34 },
     { name: "Diana's Income", amount: 3333.33 },
   ],
-  allotments: [
-    { name: "TSP Loan 1", amount: 146.90 },
-    { name: "TSP Loan 2", amount: 339.30 },
-  ],
   bills: [
+    { name: "TSP Loan 1", amount: 146.90, due: 1 },
+    { name: "TSP Loan 2", amount: 339.30, due: 1 },
     { name: "Table Bill", amount: 199, due: 1 },
     { name: "Pioneer", amount: 336.05, due: 1 },
     { name: "Shed (Rent-to-Own)", amount: 175, due: 1 },
@@ -159,6 +157,15 @@ const DEFAULT_DATA = {
 function normalizeData(d) {
   delete d.register;
   delete d.deductions;
+  // Allotments ended with military retirement: anything still saved there
+  // becomes a regular bill (due the 1st until edited on the Budget tab).
+  if (Array.isArray(d.allotments)) {
+    if (!Array.isArray(d.bills)) d.bills = [];
+    d.allotments.forEach((a) => {
+      if (!d.bills.some((b) => b.name === a.name)) d.bills.push({ name: a.name, amount: a.amount || 0, due: 1 });
+    });
+  }
+  delete d.allotments;
   if (!d.paid || typeof d.paid !== "object") d.paid = {};
   return d;
 }
@@ -204,6 +211,11 @@ function save() {
 function fmt(n) {
   return (Number(n) || 0).toLocaleString("en-US", { style: "currency", currency: "USD" });
 }
+function ordinal(n) {
+  n = Number(n) || 0;
+  const s = ["th", "st", "nd", "rd"], v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
 function fmtCompact(n) {
   return (Number(n) || 0).toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 }
@@ -236,10 +248,8 @@ function projectDebtFreeMonths(debts, extra, method, maxMonths = 240) {
 
 // ---- computed getters ----
 const totalIncome = () => data.income.reduce((s, i) => s + (i.amount || 0), 0);
-const totalAllotments = () => data.allotments.reduce((s, i) => s + (i.amount || 0), 0);
 const totalBills = () => data.bills.reduce((s, i) => s + (i.amount || 0), 0);
-const netTakeHome = () => totalIncome() - totalAllotments();
-const remaining = () => netTakeHome() - totalBills();
+const remaining = () => totalIncome() - totalBills();
 const totalDebt = () => data.debts.reduce((s, d) => s + (d.balance || 0), 0);
 const totalAssets = () => data.assets.reduce((s, a) => s + (a.value || 0), 0);
 const totalOtherLiab = () => data.otherLiabilities.reduce((s, l) => s + (l.value || 0), 0);
@@ -418,7 +428,7 @@ function openModal(title, fields, initial, onSave) {
   document.body.appendChild(backdrop);
 }
 
-// ---- list section renderer (income/allotments/bills/assets/liabilities) ----
+// ---- list section renderer (income/bills/assets/liabilities) ----
 function renderList(container, title, key, fields, totalLabel) {
   const card = document.createElement("div");
   card.className = "card";
@@ -438,7 +448,9 @@ function renderList(container, title, key, fields, totalLabel) {
     row.className = "row";
     const meta = fields.filter((f) => f.key !== "name" && f.key !== fields.find(x=>x.type==="number"&&x.key!=="due")?.key)
       .filter((f) => item[f.key] !== undefined && item[f.key] !== null && item[f.key] !== "")
-      .map((f) => `${f.label}: ${item[f.key]}`).join(" · ");
+      .map((f) => (f.key === "due" || f.key === "dueDay") ? `Due the ${ordinal(item[f.key])}`
+        : f.key === "payday" ? `Paid on the ${ordinal(item[f.key])}`
+        : `${f.label}: ${item[f.key]}`).join(", ");
     const amountField = fields.find((f) => f.type === "number" && f.key !== "due");
     row.innerHTML = `
       <div class="row-main">
@@ -490,6 +502,34 @@ function renderReminders(root) {
   card.className = "card";
   card.innerHTML = `<div class="section-title">Coming up</div>`;
 
+  const listWrap = document.createElement("div");
+  if (upcoming.length === 0) {
+    listWrap.innerHTML = `<div class="empty">Nothing unpaid in the next ${rs.daysBefore} days.</div>`;
+  } else {
+    upcoming.forEach((it) => {
+      const urgent = it.days <= 0;
+      const when = it.days < 0 ? `${-it.days}d past due` : it.days === 0 ? "due today" : `in ${it.days}d`;
+      const row = document.createElement("div");
+      row.className = "row";
+      row.appendChild(checkButton(false, () => togglePaid(it.y, it.m, it.id)));
+      const main = document.createElement("div");
+      main.className = "row-main";
+      main.innerHTML = `
+        <div class="row-name">${it.name}</div>
+        <div class="row-meta" style="color:${urgent ? "var(--red)" : "var(--gold)"};">${when}</div>
+      `;
+      row.appendChild(main);
+      const amt = document.createElement("div");
+      amt.className = "row-amt";
+      amt.textContent = fmt(it.amount);
+      row.appendChild(amt);
+      listWrap.appendChild(row);
+    });
+  }
+  card.appendChild(listWrap);
+
+  const settingsWrap = document.createElement("div");
+  settingsWrap.className = "settings-block";
   const toggleRow = document.createElement("div");
   toggleRow.className = "extra-row";
   toggleRow.innerHTML = `<span class="field-label" style="margin:0;">Notify me</span>`;
@@ -524,7 +564,7 @@ function renderReminders(root) {
     }
   };
   toggleRow.appendChild(toggleBtn);
-  card.appendChild(toggleRow);
+  settingsWrap.appendChild(toggleRow);
 
   const daysRow = document.createElement("div");
   daysRow.className = "extra-row";
@@ -539,47 +579,21 @@ function renderReminders(root) {
     renderApp();
   };
   daysRow.appendChild(daysInput);
-  card.appendChild(daysRow);
+  settingsWrap.appendChild(daysRow);
 
   if (permission === "denied") {
     const p = document.createElement("p");
     p.className = "stat-sub";
     p.style.color = "var(--red)";
     p.textContent = "Notifications are blocked in this browser for this site — check site settings to re-enable.";
-    card.appendChild(p);
+    settingsWrap.appendChild(p);
   } else if (permission !== "unsupported") {
     const p = document.createElement("p");
     p.className = "stat-sub";
     p.textContent = "Notifications only fire while the app is open on this device — open it daily (or keep it installed and reopen it each morning) for reminders to work.";
-    card.appendChild(p);
+    settingsWrap.appendChild(p);
   }
-
-  const listWrap = document.createElement("div");
-  listWrap.style.marginTop = "10px";
-  if (upcoming.length === 0) {
-    listWrap.innerHTML = `<div class="empty">Nothing unpaid in the next ${rs.daysBefore} days.</div>`;
-  } else {
-    upcoming.forEach((it) => {
-      const urgent = it.days <= 0;
-      const when = it.days < 0 ? `${-it.days}d past due` : it.days === 0 ? "due today" : `in ${it.days}d`;
-      const row = document.createElement("div");
-      row.className = "row";
-      row.appendChild(checkButton(false, () => togglePaid(it.y, it.m, it.id)));
-      const main = document.createElement("div");
-      main.className = "row-main";
-      main.innerHTML = `
-        <div class="row-name">${it.name}</div>
-        <div class="row-meta" style="color:${urgent ? "var(--red)" : "var(--gold)"};">${when}</div>
-      `;
-      row.appendChild(main);
-      const amt = document.createElement("div");
-      amt.className = "row-amt";
-      amt.textContent = fmt(it.amount);
-      row.appendChild(amt);
-      listWrap.appendChild(row);
-    });
-  }
-  card.appendChild(listWrap);
+  card.appendChild(settingsWrap);
 
   root.appendChild(card);
 }
@@ -587,7 +601,7 @@ function renderReminders(root) {
 function renderDashboard(root) {
   const months = projectDebtFreeMonths(data.debts, data.extraPayment, data.payoffMethod);
 
-  root.appendChild(monthProgressCard(new Date().getFullYear(), new Date().getMonth(), true));
+  root.appendChild(monthStripCard(new Date().getFullYear(), new Date().getMonth()));
   renderReminders(root);
 
   const stats = document.createElement("div");
@@ -595,12 +609,12 @@ function renderDashboard(root) {
   const items = [
     ["Net worth", fmt(netWorth()), netWorth() >= 0 ? "green" : "red"],
     ["Total debt", fmtCompact(totalDebt()), "red"],
-    ["Remaining/mo", fmtCompact(remaining()), "gold"],
+    ["Left over/mo", fmtCompact(remaining()), "gold"],
     ["Debt-free in", months === 0 ? "There!" : `${months} mo`, "green"],
   ];
   items.forEach(([label, val, cls]) => {
     const c = document.createElement("div");
-    c.className = "card";
+    c.className = "card stat";
     c.innerHTML = `<p class="stat-label">${label}</p><p class="stat-value ${cls}">${val}</p>`;
     stats.appendChild(c);
   });
@@ -608,7 +622,7 @@ function renderDashboard(root) {
 
   const progressCard = document.createElement("div");
   progressCard.className = "card";
-  progressCard.innerHTML = `<div class="section-title">Payoff progress (${data.payoffMethod})</div>`;
+  progressCard.innerHTML = `<div class="section-title">Debt payoff<span class="section-note">${data.payoffMethod === "avalanche" ? "Avalanche" : "Snowball"} order</span></div>`;
   const grid = document.createElement("div");
   grid.className = "ribbon-grid";
   const target = sortedDebts().find((d) => d.balance > 0.01);
@@ -623,7 +637,7 @@ function renderDashboard(root) {
     div.style.background = paid ? "var(--green-dim)" : isTarget ? "var(--gold)" : "var(--surface)";
     div.style.color = paid ? "var(--green)" : isTarget ? "var(--gold-text)" : "var(--text-dim)";
     div.title = d.name;
-    div.textContent = paid ? "✓" : Math.round(pctPaid) + "%";
+    div.innerHTML = `<span class="ribbon-pct">${paid ? "✓" : Math.round(pctPaid) + "%"}</span><span class="ribbon-name">${d.name}</span>`;
     grid.appendChild(div);
   });
   progressCard.appendChild(grid);
@@ -637,8 +651,8 @@ function renderDashboard(root) {
     const row = document.createElement("div");
     row.style.marginBottom = "10px";
     row.innerHTML = `
-      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;">
-        <span>${g.name}</span><span class="stat-sub">${fmt(g.current)} / ${fmt(g.target)}</span>
+      <div style="display:flex;justify-content:space-between;font-size:15px;margin-bottom:5px;">
+        <span>${g.name}</span><span class="stat-sub" style="margin:0;">${fmt(g.current)} / ${fmt(g.target)}</span>
       </div>
       <div class="progress-track"><div class="progress-fill" style="width:${Math.max(0,Math.min(100,pct))}%;background:var(--green);"></div></div>
     `;
@@ -652,19 +666,17 @@ function renderBudget(root) {
   stats.className = "stats-grid";
   [
     ["Take-home pay", fmt(totalIncome()), ""],
-    ["After allotments", fmt(netTakeHome()), "gold"],
     ["Total bills", fmt(totalBills()), "red"],
-    ["Remaining", fmt(remaining()), remaining() >= 0 ? "green" : "red"],
-  ].forEach(([label, val, cls]) => {
+    ["Left over each month", fmt(remaining()), remaining() >= 0 ? "green" : "red", "wide"],
+  ].forEach(([label, val, cls, wide]) => {
     const c = document.createElement("div");
-    c.className = "card";
+    c.className = "card stat" + (wide ? " wide" : "");
     c.innerHTML = `<p class="stat-label">${label}</p><p class="stat-value ${cls}">${val}</p>`;
     stats.appendChild(c);
   });
   root.appendChild(stats);
 
   renderList(root, "Income", "income", [{ key: "name", label: "Source" }, { key: "amount", label: "$/mo", type: "number" }, { key: "payday", label: "Payday (day of month)", type: "number" }], "Total take-home pay");
-  renderList(root, "Allotments", "allotments", [{ key: "name", label: "Item" }, { key: "amount", label: "$/mo", type: "number" }], "Total allotments");
   renderList(root, "Bills", "bills", [{ key: "name", label: "Bill" }, { key: "due", label: "Due day", type: "number" }, { key: "amount", label: "$/mo", type: "number" }], "Total bills");
 
 }
@@ -704,7 +716,7 @@ function renderDebts(root) {
     ["Debt-free in", months === 0 ? "There!" : `${months} months`, "green"],
   ].forEach(([label, val, cls]) => {
     const c = document.createElement("div");
-    c.className = "card";
+    c.className = "card stat";
     c.innerHTML = `<p class="stat-label">${label}</p><p class="stat-value ${cls}">${val}</p>`;
     stats.appendChild(c);
   });
@@ -735,7 +747,7 @@ function renderNetWorth(root) {
     ["Net worth", fmt(netWorth()), netWorth() >= 0 ? "green" : "red"],
   ].forEach(([label, val, cls]) => {
     const c = document.createElement("div");
-    c.className = "card";
+    c.className = "card stat";
     c.innerHTML = `<p class="stat-label">${label}</p><p class="stat-value ${cls}">${val}</p>`;
     stats.appendChild(c);
   });
@@ -834,6 +846,76 @@ function monthProgressCard(y, m, linkToCalendar) {
   return card;
 }
 
+// Dashboard hero: every day of the month as a bar sized by what's due,
+// colored by status, with a marker on today. Tap to open the calendar.
+function monthStripCard(y, m) {
+  const items = billsForMonth(y, m);
+  const total = items.reduce((s, it) => s + it.amount, 0);
+  const paidAmt = items.filter((it) => it.paid).reduce((s, it) => s + it.amount, 0);
+  const paidCount = items.filter((it) => it.paid).length;
+  const left = total - paidAmt;
+  const dim = new Date(y, m + 1, 0).getDate();
+  const today = new Date();
+  const isCurrent = today.getFullYear() === y && today.getMonth() === m;
+  const todayD = today.getDate();
+  const lateAmt = items.filter((it) => !it.paid && isCurrent && it.day < todayD).reduce((s, it) => s + it.amount, 0);
+
+  const byDay = [];
+  let max = 0;
+  for (let d = 1; d <= dim; d++) {
+    const di = items.filter((it) => it.day === d);
+    const amt = di.reduce((s, it) => s + it.amount, 0);
+    max = Math.max(max, amt);
+    byDay.push({ d, amt, count: di.length, unpaid: di.filter((it) => !it.paid).length });
+  }
+
+  const card = document.createElement("div");
+  card.className = "card hero";
+  card.onclick = () => {
+    calendarDate = new Date(y, m, 1);
+    calendarSelectedDay = null;
+    switchTab("calendar");
+  };
+  const monthName = new Date(y, m, 1).toLocaleString("default", { month: "long" });
+  card.innerHTML = `
+    <div class="hero-top">
+      <div>
+        <p class="hero-label">Left to pay in ${monthName}</p>
+        <p class="hero-value">${left > 0.005 ? fmt(left) : "All paid"}</p>
+      </div>
+      <div class="hero-count"><b>${paidCount}</b><span>of ${items.length} paid</span></div>
+    </div>
+  `;
+  const strip = document.createElement("div");
+  strip.className = "strip";
+  byDay.forEach((b) => {
+    const col = document.createElement("div");
+    col.className = "strip-col" + (isCurrent && b.d === todayD ? " is-today" : "");
+    const bar = document.createElement("div");
+    if (b.count) {
+      const status = b.unpaid === 0 ? "done" : (isCurrent && b.d < todayD) || (new Date(y, m, b.d) < new Date(today.getFullYear(), today.getMonth(), todayD)) ? "late" : "due";
+      bar.className = "strip-bar " + status;
+      bar.style.height = Math.max(10, Math.sqrt(b.amt / (max || 1)) * 100) + "%";
+    } else {
+      bar.className = "strip-bar none";
+    }
+    col.appendChild(bar);
+    strip.appendChild(col);
+  });
+  card.appendChild(strip);
+  const ticks = document.createElement("div");
+  ticks.className = "strip-ticks";
+  ticks.innerHTML = [1, 8, 15, 22, dim].map((d) => `<span style="left:${((d - 0.5) / dim) * 100}%">${d}</span>`).join("");
+  card.appendChild(ticks);
+  const foot = document.createElement("p");
+  foot.className = "hero-foot";
+  foot.innerHTML = lateAmt > 0.005
+    ? `<span class="red">${fmt(lateAmt)} past due.</span> Tap to check off bills.`
+    : `${fmt(paidAmt)} of ${fmt(total)} paid. Tap to check off bills.`;
+  card.appendChild(foot);
+  return card;
+}
+
 function renderCalendar(root) {
   const year = calendarDate.getFullYear();
   const month = calendarDate.getMonth();
@@ -875,9 +957,10 @@ function renderCalendar(root) {
     scrollToDay(calendarSelectedDay);
   };
   navCard.appendChild(nav);
+  const progress = monthProgressCard(year, month, false);
+  progress.className = "nav-progress";
+  navCard.appendChild(progress);
   root.appendChild(navCard);
-
-  root.appendChild(monthProgressCard(year, month, false));
 
   // Calendar grid
   const gridCard = document.createElement("div");
@@ -1052,6 +1135,8 @@ const RENDERERS = {
 };
 
 function renderApp() {
+  const hdrDate = document.getElementById("hdr-date");
+  if (hdrDate) hdrDate.textContent = new Date().toLocaleString("default", { weekday: "short", month: "short", day: "numeric" });
   const root = document.getElementById("app");
   root.innerHTML = "";
   RENDERERS[currentTab](root);
