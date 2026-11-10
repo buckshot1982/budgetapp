@@ -79,53 +79,39 @@ const DEFAULT_DATA = {
     { name: "Diana's Income", amount: 3333.33 },
   ],
   bills: [
-    { name: "TSP Loan 1", amount: 146.90, due: 1 },
-    { name: "TSP Loan 2", amount: 339.30, due: 1 },
-    { name: "Table Bill", amount: 199, due: 1 },
-    { name: "Pioneer", amount: 336.05, due: 1 },
     { name: "Shed (Rent-to-Own)", amount: 175, due: 1 },
     { name: "Mortgage", amount: 2754.77, due: 1 },
     { name: "Water", amount: 70, due: 1 },
-    { name: "Freedom Flex", amount: 25, due: 2 },
-    { name: "Quicksilver 8785", amount: 25, due: 3 },
     { name: "Navy Federal Credit", amount: 59.86, due: 5 },
     { name: "Diana Cash App", amount: 100, due: 5 },
-    { name: "OneMain Loan", amount: 397.40, due: 7 },
-    { name: "Affirm 1", amount: 24.10, due: 8 },
-    { name: "Savor 9968", amount: 25, due: 9 },
-    { name: "Xfinity", amount: 86.20, due: 9 },
-    { name: "Military Star Card", amount: 30, due: 9 },
-    { name: "GameStop Pro", amount: 0, due: 14 },
-    { name: "Road Runner Financial", amount: 176, due: 15 },
-    { name: "Capital One Savor 1101", amount: 25, due: 15 },
+    { name: "Xfinity", amount: 86.2, due: 9 },
     { name: "Martial Arts", amount: 101, due: 15 },
     { name: "Progressive", amount: 137.65, due: 16 },
-    { name: "Affirm 2", amount: 55.56, due: 17 },
-    { name: "Merrick Credit", amount: 48, due: 17 },
-    { name: "Affirm 3", amount: 261.23, due: 18 },
     { name: "Georgia Electric", amount: 200, due: 18 },
-    { name: "Diana Savor Card 7247", amount: 50, due: 20 },
     { name: "Jason Cash App", amount: 100, due: 21 },
-    { name: "Amazon Store", amount: 30, due: 23 },
-    { name: "Diana Credit One", amount: 50, due: 26 },
-    { name: "AT&T", amount: 255.00, due: 27 },
-    { name: "Brightway Credit", amount: 25, due: 27 },
+    { name: "AT&T", amount: 255, due: 27 },
   ],
   debts: [
-    { name: "Freedom Flex", balance: 200.39, minPay: 25.00, apr: 27.99 },
-    { name: "Amazon Store", balance: 247.83, minPay: 30.00, apr: 29.49 },
-    { name: "Diana Savor Card 7247", balance: 390.85, minPay: 50.00, apr: 29.00 },
-    { name: "Diana Credit One", balance: 410.56, minPay: 50.00, apr: 29.00 },
-    { name: "Savor 9968", balance: 516.88, minPay: 25.00, apr: 24.49 },
-    { name: "Quicksilver 8785", balance: 556.17, minPay: 25.00, apr: 4.00 },
-    { name: "Merrick Credit", balance: 1089.35, minPay: 48.00, apr: 29.70 },
-    { name: "Brightway Credit", balance: 1379.28, minPay: 25.00, apr: 27.99 },
-    { name: "Capital One Savor 1101", balance: 1475.28, minPay: 25.00, apr: 4.00 },
-    { name: "Table Bill", balance: 1500.00, minPay: 199.00, apr: 29.99 },
-    { name: "Military Star Card", balance: 1658.09, minPay: 30.00, apr: 21.74 },
-    { name: "Pioneer", balance: 3559.30, minPay: 333.05, apr: 35.99 },
-    { name: "Road Runner Financial", balance: 6682.69, minPay: 176.00, apr: 18.99 },
-    { name: "OneMain Loan", balance: 9692.48, minPay: 397.40, apr: 35.99 },
+    { name: "Freedom Flex", balance: 200.39, minPay: 25, apr: 27.99, dueDay: 2 },
+    { name: "Amazon Store", balance: 247.83, minPay: 30, apr: 29.49, dueDay: 23 },
+    { name: "Diana Savor Card 7247", balance: 390.85, minPay: 50, apr: 29, dueDay: 20 },
+    { name: "Diana Credit One", balance: 0, minPay: 50, apr: 29, dueDay: 26 },
+    { name: "Savor 9968", balance: 516.88, minPay: 25, apr: 24.49, dueDay: 9 },
+    { name: "Quicksilver 8785", balance: 556.17, minPay: 25, apr: 4, dueDay: 3 },
+    { name: "Merrick Credit", balance: 1089.35, minPay: 48, apr: 29.7, dueDay: 17 },
+    { name: "Brightway Credit", balance: 1379.28, minPay: 25, apr: 27.99, dueDay: 27 },
+    { name: "Capital One Savor 1101", balance: 1475.28, minPay: 25, apr: 4, dueDay: 15 },
+    { name: "Table Bill", balance: 0, minPay: 199, apr: 29.99, dueDay: 1 },
+    { name: "Military Star Card", balance: 1658.09, minPay: 30, apr: 21.74, dueDay: 9 },
+    { name: "Pioneer", balance: 0, minPay: 333.05, apr: 35.99, dueDay: 1 },
+    { name: "Road Runner Financial", balance: 6682.69, minPay: 176, apr: 18.99, dueDay: 15 },
+    { name: "OneMain Loan", balance: 9692.48, minPay: 397.4, apr: 35.99, dueDay: 7 },
+    { name: "TSP Loan 1", balance: 2439.36, minPay: 146.9, apr: null, dueDay: 1 },
+    { name: "TSP Loan 2", balance: 14842.27, minPay: 339.3, apr: null, dueDay: 1 },
+    { name: "GameStop Pro", balance: null, minPay: 0, apr: null, dueDay: 14 },
+    { name: "Affirm 1", balance: 0, minPay: 24.1, apr: null, dueDay: 8 },
+    { name: "Affirm 2", balance: 0, minPay: 55.56, apr: null, dueDay: 17 },
+    { name: "Affirm 3", balance: 0, minPay: 261.23, apr: null, dueDay: 18 },
   ],
   extraPayment: 6500,
   payoffMethod: "snowball",
@@ -133,8 +119,6 @@ const DEFAULT_DATA = {
   assets: [{ name: "TSP Balance", value: 55000 }],
   otherLiabilities: [
     { name: "Mortgage Balance", value: 332244.81 },
-    { name: "TSP Loan 1 Balance", value: 2439.36 },
-    { name: "TSP Loan 2 Balance", value: 14842.27 },
     { name: "College Direct Loan Sub 1-01", value: 4500.00, note: "Payments start 01/01/2027" },
     { name: "College Direct Loan Unsub 1-02", value: 5724.67, note: "Payments start 01/01/2027" },
     { name: "College Direct Loan Sub 1-03", value: 1469.00, note: "Payments start 01/01/2027" },
@@ -166,9 +150,137 @@ function normalizeData(d) {
     });
   }
   delete d.allotments;
+  if (!d.billsDebtsSplit) splitBillsAndDebts(d);
+  applyUpdates(d);
   if (!d.paid || typeof d.paid !== "object") d.paid = {};
   return d;
 }
+
+// One-time move: anything with a balance lives only on Debts. Card and loan
+// payments that were also listed as bills are taken off Bills (the debt picks
+// up the bill's due day), and the TSP loans, GameStop Pro, and Affirm loans
+// move over as new debts. Checkmarks already made this month carry over.
+const MOVE_TO_DEBTS = ["TSP Loan 1", "TSP Loan 2", "GameStop Pro", "Affirm 1", "Affirm 2", "Affirm 3"];
+function splitBillsAndDebts(d) {
+  d.bills = Array.isArray(d.bills) ? d.bills : [];
+  d.debts = Array.isArray(d.debts) ? d.debts : [];
+  d.otherLiabilities = Array.isArray(d.otherLiabilities) ? d.otherLiabilities : [];
+  const moved = [];
+  d.bills = d.bills.filter((b) => {
+    const debt = d.debts.find((x) => x.name === b.name);
+    if (debt) {
+      if (!debt.dueDay) debt.dueDay = b.due;
+      moved.push(b.name);
+      return false;
+    }
+    if (MOVE_TO_DEBTS.includes(b.name)) {
+      const li = d.otherLiabilities.findIndex((l) => l.name === b.name + " Balance");
+      const balance = li >= 0 ? d.otherLiabilities[li].value : null;
+      if (li >= 0) d.otherLiabilities.splice(li, 1);
+      d.debts.push({ name: b.name, balance, minPay: b.amount || 0, apr: null, dueDay: b.due });
+      moved.push(b.name);
+      return false;
+    }
+    return true;
+  });
+  Object.values(d.paid || {}).forEach((month) => {
+    moved.forEach((n) => {
+      if (month["bill:" + n]) { month["debt:" + n] = true; delete month["bill:" + n]; }
+    });
+  });
+  d.billsDebtsSplit = true;
+}
+
+// One-time changes to saved data (from the update spreadsheet). Each runs
+// once per household; its id is remembered so it never runs twice.
+const UPDATES = [
+  {
+    id: "2026-11-10-paid-off",
+    apply(d) {
+      const paidOff = ["Table Bill", "Pioneer", "Affirm 1", "Affirm 2", "Affirm 3", "Diana Credit One"];
+      d.debts.forEach((debt) => {
+        if (paidOff.includes(debt.name)) {
+          if (typeof debt.balance === "number" && debt.balance > 0) debt.startBalance = debt.startBalance || debt.balance;
+          debt.balance = 0;
+        }
+      });
+    },
+  },
+];
+// Helpers for updates: change a bill or debt by name (adding it if it isn't
+// there), optionally renaming it. Checkmarks follow a renamed item.
+function renamePaid(d, type, from, to) {
+  Object.values(d.paid || {}).forEach((m) => {
+    if (m[type + ":" + from]) { m[type + ":" + to] = true; delete m[type + ":" + from]; }
+  });
+}
+function updateBill(d, name, fields, newName) {
+  let b = d.bills.find((x) => x.name === name || x.name === newName);
+  if (!b) { b = { name: newName || name }; d.bills.push(b); }
+  if (newName && b.name !== newName) { renamePaid(d, "bill", b.name, newName); b.name = newName; }
+  Object.assign(b, fields);
+}
+function updateDebt(d, name, fields, newName) {
+  let x = d.debts.find((y) => y.name === name || y.name === newName);
+  if (!x) { x = { name: newName || name, apr: null }; d.debts.push(x); }
+  if (newName && x.name !== newName) { renamePaid(d, "debt", x.name, newName); x.name = newName; }
+  if (fields.balance === 0 && typeof x.balance === "number" && x.balance > 0) x.startBalance = x.startBalance || x.balance;
+  Object.assign(x, fields);
+}
+
+UPDATES.push({
+  // Statement update: new amounts, Mission Lane added, Amazon and GameStop
+  // paid off, and the three Affirm loans now in collections.
+  id: "2026-11-10-statements",
+  apply(d) {
+    const bill = (name, fields, newName) => updateBill(d, name, fields, newName);
+    const debt = (name, fields, newName) => updateDebt(d, name, fields, newName);
+
+    bill("Water", { amount: 50 });
+    bill("Shed (Rent-to-Own)", { amount: 177.19, due: 3 }, "Shed (Heartland Capital)");
+    bill("Xfinity", { amount: 96.35, due: 18 });
+    bill("Mortgage", { amount: 2814.87, due: 1 });
+
+    debt("Mission Lane", { balance: 1907.90, startBalance: 1907.90, minPay: 80.29, dueDay: 4, available: 92.10 });
+    debt("Amazon Store", { balance: 0 });
+    debt("GameStop Pro", { balance: 0 });
+    debt("Road Runner Financial", { minPay: 173.32, dueDay: 14, note: "Financed through Octane" }, "Road Runner (4-wheeler)");
+    debt("Merrick Credit", { balance: 1028.56, available: 171.00, dueDay: 17 });
+    debt("Military Star Card", { balance: 1537.14, available: 1162.86, minPay: 30.73, dueDay: 9 });
+    debt("Affirm 1", { balance: 903.46, startBalance: 903.46, minPay: 50, note: "Affirm in collections, now with inDebt.com" }, "Newegg computer parts");
+    debt("Affirm 2", { balance: 1208.00, startBalance: 1208.00, minPay: 50, note: "Affirm in collections" }, "Heritage Steel pan set");
+    debt("Affirm 3", { balance: 1789.87, startBalance: 1789.87, minPay: null, note: "Affirm in collections, now with January" }, "Modern Automotive Performance");
+
+    // Paid-off debts move to the bottom of the list.
+    d.debts.sort((a, b) => (isPaidOff(a) ? 1 : 0) - (isPaidOff(b) ? 1 : 0));
+  },
+});
+
+UPDATES.push({
+  // Second statement update (Nov 10, 2026).
+  id: "2026-11-10-statements-2",
+  apply(d) {
+    updateBill(d, "Progressive", { amount: 340.63, due: 16 });
+    updateDebt(d, "Capital One Savor 1101", { balance: 1469.31, available: 30.69 });
+    updateDebt(d, "Quicksilver 8785", { balance: 477.70 });
+    updateDebt(d, "Savor 9968", { balance: 477.70 });
+    updateDebt(d, "OneMain Loan", { balance: 8364.24, minPay: 397.40, dueDay: 1 });
+    updateDebt(d, "Brightway Credit", { balance: 1388.46, available: 111.54, minPay: 50, dueDay: 23, note: "OneMain Brightway card" });
+  },
+});
+
+function applyUpdates(d) {
+  d.appliedUpdates = Array.isArray(d.appliedUpdates) ? d.appliedUpdates : [];
+  UPDATES.forEach((u) => {
+    if (d.appliedUpdates.includes(u.id)) return;
+    u.apply(d);
+    d.appliedUpdates.push(u.id);
+  });
+}
+
+// Balance typed in and greater than zero. Blank balance = not entered yet.
+const hasBalance = (d) => typeof d.balance === "number";
+const isPaidOff = (d) => hasBalance(d) && d.balance <= 0.01;
 
 // Wrap localStorage so a sandboxed preview that blocks it (throws instead of
 // just being unavailable) can't break saves/re-renders — falls back to an
@@ -198,7 +310,9 @@ function loadData() {
     const raw = storageGet(STORAGE_KEY);
     if (raw) return normalizeData({ ...structuredClone(DEFAULT_DATA), ...JSON.parse(raw) });
   } catch (e) {}
-  return structuredClone(DEFAULT_DATA);
+  const fresh = structuredClone(DEFAULT_DATA);
+  fresh.billsDebtsSplit = true;
+  return normalizeData(fresh);
 }
 
 let data = loadData();
@@ -221,12 +335,13 @@ function fmtCompact(n) {
 }
 
 function projectDebtFreeMonths(debts, extra, method, maxMonths = 240) {
-  if (debts.length === 0 || debts.every((d) => d.balance <= 0)) return 0;
+  debts = debts.filter((d) => typeof d.balance === "number" && d.balance > 0.01);
+  if (debts.length === 0) return 0;
   const order = [...debts].sort((a, b) =>
-    method === "avalanche" ? b.apr - a.apr : a.balance - b.balance
+    method === "avalanche" ? (b.apr || 0) - (a.apr || 0) : a.balance - b.balance
   );
   const bal = {}, minPay = {}, apr = {};
-  order.forEach((d, i) => { bal[i] = d.balance; minPay[i] = d.minPay; apr[i] = d.apr; });
+  order.forEach((d, i) => { bal[i] = d.balance; minPay[i] = d.minPay || 0; apr[i] = d.apr || 0; });
   let months = 0;
   while (months < maxMonths) {
     const active = Object.keys(bal).filter((i) => bal[i] > 0.01);
@@ -249,14 +364,18 @@ function projectDebtFreeMonths(debts, extra, method, maxMonths = 240) {
 // ---- computed getters ----
 const totalIncome = () => data.income.reduce((s, i) => s + (i.amount || 0), 0);
 const totalBills = () => data.bills.reduce((s, i) => s + (i.amount || 0), 0);
-const remaining = () => totalIncome() - totalBills();
+const activeDebts = () => data.debts.filter((d) => !isPaidOff(d));
+const totalDebtPayments = () => activeDebts().reduce((s, d) => s + (d.minPay || 0), 0);
+const remaining = () => totalIncome() - totalBills() - totalDebtPayments();
 const totalDebt = () => data.debts.reduce((s, d) => s + (d.balance || 0), 0);
 const totalAssets = () => data.assets.reduce((s, a) => s + (a.value || 0), 0);
 const totalOtherLiab = () => data.otherLiabilities.reduce((s, l) => s + (l.value || 0), 0);
 const netWorth = () => totalAssets() - totalOtherLiab() - totalDebt();
-const sortedDebts = () => [...data.debts].sort((a, b) =>
-  data.payoffMethod === "avalanche" ? b.apr - a.apr : a.balance - b.balance
-);
+// Payoff order. Debts with no balance entered go last.
+const sortedDebts = () => [...data.debts].sort((a, b) => {
+  if (hasBalance(a) !== hasBalance(b)) return hasBalance(a) ? -1 : 1;
+  return data.payoffMethod === "avalanche" ? (b.apr || 0) - (a.apr || 0) : (a.balance || 0) - (b.balance || 0);
+});
 // ---- monthly bill checklist ----
 function monthKey(y, m) { return `${y}-${String(m + 1).padStart(2, "0")}`; }
 function itemId(type, name) { return type + ":" + name; }
@@ -286,7 +405,7 @@ function billsForMonth(y, m) {
     if (b.due >= 1) items.push({ id: itemId("bill", b.name), type: "bill", name: b.name, amount: b.amount || 0, day: Math.min(b.due, dim) });
   });
   data.debts.forEach((d) => {
-    if (d.dueDay >= 1 && !billNames.has(d.name)) {
+    if (d.dueDay >= 1 && !billNames.has(d.name) && !isPaidOff(d)) {
       items.push({ id: itemId("debt", d.name), type: "debt", name: d.name, amount: d.minPay || 0, day: Math.min(d.dueDay, dim) });
     }
   });
@@ -395,7 +514,7 @@ function openModal(title, fields, initial, onSave) {
       input = document.createElement("input");
       input.type = f.type === "number" ? "number" : "text";
       if (f.type === "number") input.step = "any";
-      input.value = initial ? initial[f.key] : "";
+      input.value = initial && initial[f.key] != null ? initial[f.key] : "";
     }
     wrap.appendChild(label);
     wrap.appendChild(input);
@@ -415,7 +534,7 @@ function openModal(title, fields, initial, onSave) {
     const result = {};
     fields.forEach((f) => {
       const v = inputs[f.key].value;
-      result[f.key] = f.type === "number" ? (parseFloat(v) || 0) : v;
+      result[f.key] = f.type === "number" ? (v.trim() === "" ? null : (parseFloat(v) || 0)) : v;
     });
     onSave(result);
     backdrop.remove();
@@ -448,16 +567,20 @@ function renderList(container, title, key, fields, totalLabel) {
     row.className = "row";
     const meta = fields.filter((f) => f.key !== "name" && f.key !== fields.find(x=>x.type==="number"&&x.key!=="due")?.key)
       .filter((f) => item[f.key] !== undefined && item[f.key] !== null && item[f.key] !== "")
-      .map((f) => (f.key === "due" || f.key === "dueDay") ? `Due the ${ordinal(item[f.key])}`
+      .map((f) => (f.key === "due" || f.key === "dueDay") ? `due the ${ordinal(item[f.key])}`
         : f.key === "payday" ? `Paid on the ${ordinal(item[f.key])}`
-        : `${f.label}: ${item[f.key]}`).join(", ");
+        : f.key === "minPay" ? `${fmt(item[f.key])} a month`
+        : f.key === "apr" ? `${item[f.key]}% APR`
+        : f.key === "available" ? `${fmt(item[f.key])} available`
+        : f.key === "note" ? item[f.key]
+        : `${f.label}: ${item[f.key]}`).join(", ").replace(/^./, (c) => c.toUpperCase());
     const amountField = fields.find((f) => f.type === "number" && f.key !== "due");
     row.innerHTML = `
       <div class="row-main">
         <div class="row-name">${item.name}</div>
         ${meta ? `<div class="row-meta">${meta}</div>` : ""}
       </div>
-      <div class="row-amt">${amountField ? fmt(item[amountField.key]) : ""}</div>
+      <div class="row-amt${amountField && item[amountField.key] == null ? " missing" : ""}${key === "debts" && isPaidOff(item) ? " done" : ""}">${amountField ? (item[amountField.key] == null ? "Add balance" : key === "debts" && isPaidOff(item) ? "Paid off ✓" : fmt(item[amountField.key])) : ""}</div>
       <button class="row-del">&times;</button>
     `;
     row.querySelector(".row-main").onclick = () => {
@@ -628,16 +751,16 @@ function renderDashboard(root) {
   const target = sortedDebts().find((d) => d.balance > 0.01);
   sortedDebts().forEach((d) => {
     const orig = DEFAULT_DATA.debts.find((o) => o.name === d.name);
-    const origBal = orig ? orig.balance : d.balance || 1;
+    const origBal = d.startBalance || (orig && orig.balance) || d.balance || 1;
     const pctPaid = Math.max(0, Math.min(100, 100 - (d.balance / origBal) * 100));
     const div = document.createElement("div");
-    const paid = d.balance <= 0.01;
+    const paid = isPaidOff(d);
     const isTarget = target && target.name === d.name;
     div.className = "ribbon";
     div.style.background = paid ? "var(--green-dim)" : isTarget ? "var(--gold)" : "var(--surface)";
     div.style.color = paid ? "var(--green)" : isTarget ? "var(--gold-text)" : "var(--text-dim)";
     div.title = d.name;
-    div.innerHTML = `<span class="ribbon-pct">${paid ? "✓" : Math.round(pctPaid) + "%"}</span><span class="ribbon-name">${d.name}</span>`;
+    div.innerHTML = `<span class="ribbon-pct">${paid ? "✓" : !hasBalance(d) ? "?" : Math.round(pctPaid) + "%"}</span><span class="ribbon-name">${d.name}</span>`;
     grid.appendChild(div);
   });
   progressCard.appendChild(grid);
@@ -666,8 +789,9 @@ function renderBudget(root) {
   stats.className = "stats-grid";
   [
     ["Take-home pay", fmt(totalIncome()), ""],
-    ["Total bills", fmt(totalBills()), "red"],
-    ["Left over each month", fmt(remaining()), remaining() >= 0 ? "green" : "red", "wide"],
+    ["Bills", fmt(totalBills()), "red"],
+    ["Debt payments", fmt(totalDebtPayments()), "red"],
+    ["Left over each month", fmt(remaining()), remaining() >= 0 ? "green" : "red"],
   ].forEach(([label, val, cls, wide]) => {
     const c = document.createElement("div");
     c.className = "card stat" + (wide ? " wide" : "");
@@ -678,6 +802,11 @@ function renderBudget(root) {
 
   renderList(root, "Income", "income", [{ key: "name", label: "Source" }, { key: "amount", label: "$/mo", type: "number" }, { key: "payday", label: "Payday (day of month)", type: "number" }], "Total take-home pay");
   renderList(root, "Bills", "bills", [{ key: "name", label: "Bill" }, { key: "due", label: "Due day", type: "number" }, { key: "amount", label: "$/mo", type: "number" }], "Total bills");
+  const note = document.createElement("p");
+  note.className = "stat-sub";
+  note.style.padding = "0 4px";
+  note.textContent = `Card and loan payments (${fmt(totalDebtPayments())} a month) are on the Debts tab.`;
+  root.appendChild(note);
 
 }
 
@@ -723,9 +852,11 @@ function renderDebts(root) {
   root.appendChild(stats);
 
   renderList(root, "Debts", "debts",
-    [{ key: "name", label: "Debt" }, { key: "balance", label: "Balance", type: "number" },
-     { key: "minPay", label: "Min pay", type: "number" }, { key: "apr", label: "APR %", type: "number" },
-     { key: "dueDay", label: "Due day", type: "number" }],
+    [{ key: "name", label: "Debt" }, { key: "balance", label: "Balance (leave blank if you don't know it)", type: "number" },
+     { key: "minPay", label: "Monthly payment", type: "number" }, { key: "apr", label: "APR %", type: "number" },
+     { key: "dueDay", label: "Due day", type: "number" },
+     { key: "available", label: "Available credit (cards only)", type: "number" },
+     { key: "note", label: "Note" }],
     "Total remaining");
 
   const target = sortedDebts().find((d) => d.balance > 0.01);
